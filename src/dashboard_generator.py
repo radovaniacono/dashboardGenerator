@@ -14,466 +14,419 @@ class DashboardGenerator:
         self.insights = insights
         self.numeric_cols = ml_analyzer.numeric_cols if ml_analyzer else []
         self.categorical_cols = ml_analyzer.categorical_cols if ml_analyzer else []
+        self.datetime_cols = ml_analyzer.datetime_cols if ml_analyzer else []
         
-        # Inizializza seed per randomizzazione
-        random.seed(hash(str(df.shape) + str(df.columns.tolist())) % 2**32)
-        
-        # Seleziona tema casuale
-        self.theme = self.select_random_theme()
-        
-        # Seleziona layout casuale
-        self.layout_type = random.choice(['grid', 'waterfall', 'dashboard', 'magazine', 'minimal'])
-        
-        # Seleziona tipi di grafici casuali
-        self.chart_types = self.select_random_charts()
-        
-    def select_random_theme(self):
-        """Seleziona un tema casuale per la dashboard"""
-        themes = [
-            {
-                'name': 'Tableau Classic',
-                'primary': '#1f77b4',
-                'secondary': '#ff7f0e',
-                'tertiary': '#2ca02c',
-                'background': '#ffffff',
-                'card_bg': '#ffffff',
-                'text': '#333333',
-                'grid': '#e6e6e6'
-            },
-            {
-                'name': 'Dark Modern',
-                'primary': '#00ffff',
-                'secondary': '#ff00ff',
-                'tertiary': '#00ff00',
-                'background': '#1e1e1e',
-                'card_bg': '#2d2d2d',
-                'text': '#ffffff',
-                'grid': '#404040'
-            },
-            {
-                'name': 'Corporate Blue',
-                'primary': '#003f5c',
-                'secondary': '#58508d',
-                'tertiary': '#bc5090',
-                'background': '#f0f2f6',
-                'card_bg': '#ffffff',
-                'text': '#2c3e50',
-                'grid': '#d3d9e0'
-            },
-            {
-                'name': 'Sunset',
-                'primary': '#ff6b35',
-                'secondary': '#f7c59f',
-                'tertiary': '#efefd0',
-                'background': '#fff5e6',
-                'card_bg': '#ffffff',
-                'text': '#4a4a4a',
-                'grid': '#ffe0cc'
-            },
-            {
-                'name': 'Forest',
-                'primary': '#2d6a4f',
-                'secondary': '#40916c',
-                'tertiary': '#52b788',
-                'background': '#f0f7f0',
-                'card_bg': '#ffffff',
-                'text': '#1b4332',
-                'grid': '#d4e6d4'
-            },
-            {
-                'name': 'Ocean',
-                'primary': '#0077b6',
-                'secondary': '#0096c7',
-                'tertiary': '#00b4d8',
-                'background': '#e0f7fa',
-                'card_bg': '#ffffff',
-                'text': '#023e8a',
-                'grid': '#b3e5fc'
-            }
+        # Palette pastello
+        self.pastel_colors = [
+            '#A8E6CF', '#FFD3B6', '#FFAAA5', '#FF8B94',
+            '#B5EAD7', '#C7CEEA', '#E2F0CB', '#FFDAC1',
+            '#B0E0E6', '#F7C6C6', '#C9E4DE', '#FDD0F2'
         ]
-        return random.choice(themes)
+        
+        # Seleziona tema pastello casuale
+        self.theme = {
+            'primary': random.choice(self.pastel_colors),
+            'secondary': random.choice(self.pastel_colors),
+            'background': '#F9FBF4',
+            'card_bg': '#FFFFFF',
+            'text': '#4A5B6E',
+            'accent': '#FFB7B2'
+        }
+        
+        # Seleziona layout a griglia fissa (non scrollabile)
+        self.chart_types = self.select_charts_for_grid()
     
-    def select_random_charts(self):
-        """Seleziona casualmente quali tipi di grafici generare"""
-        available_charts = []
+    def select_charts_for_grid(self):
+        """Seleziona 4 grafici per layout 2x2 (non scrollabile)"""
+        charts = []
         
+        # Grafico 1: Istogramma (se ci sono dati numerici)
         if self.numeric_cols:
-            available_charts.append('histogram')
-            available_charts.append('boxplot')
+            charts.append('histogram')
         
-        if self.categorical_cols and self.numeric_cols:
-            available_charts.append('barchart')
+        # Grafico 2: Bar chart categorie (se ci sono dati categorici)
+        if self.categorical_cols:
+            charts.append('barchart')
+        elif len(self.numeric_cols) >= 2:
+            charts.append('scatter')
         
-        if len(self.numeric_cols) >= 2:
-            available_charts.append('scatter')
+        # Grafico 3: Time series (se ci sono date)
+        if self.datetime_cols and self.numeric_cols:
+            charts.append('timeseries')
+        elif len(self.numeric_cols) > 1:
+            charts.append('heatmap')
         
-        if self.ml_analyzer and self.ml_analyzer.datetime_cols and self.numeric_cols:
-            available_charts.append('timeseries')
+        # Grafico 4: Box plot o scatter
+        if self.numeric_cols:
+            charts.append('boxplot')
+        elif self.categorical_cols:
+            charts.append('pie')
         
-        if len(self.numeric_cols) > 1:
-            available_charts.append('heatmap')
+        # Assicura almeno 4 grafici
+        while len(charts) < 4:
+            charts.append('histogram')
         
-        # Seleziona 3-5 grafici casuali
-        num_charts = min(random.randint(3, 5), len(available_charts))
-        if num_charts < 1:
-            num_charts = 1
-        
-        return random.sample(available_charts, num_charts)
+        return charts[:4]
     
     def create_histogram(self, index):
-        """Crea istogramma"""
         col = random.choice(self.numeric_cols)
         data = self.df[col].dropna()
-        
         fig = go.Figure()
         fig.add_trace(go.Histogram(
             x=data,
-            nbinsx=min(30, int(np.sqrt(len(data)))),
-            marker_color=self.theme['primary'],
+            nbinsx=min(20, int(np.sqrt(len(data)))),
+            marker_color=self.pastel_colors[index % len(self.pastel_colors)],
             marker_line_color='white',
             marker_line_width=1,
-            opacity=0.8
+            opacity=0.85
         ))
-        
         fig.update_layout(
-            title=f"Distribuzione {col}",
+            title=f"📊 {col}",
             xaxis_title=col,
-            yaxis_title="Frequenza",
-            plot_bgcolor=self.theme['background'],
-            paper_bgcolor=self.theme['card_bg'],
-            height=400,
-            margin=dict(l=50, r=30, t=50, b=50),
-            font=dict(color=self.theme['text'])
+            yaxis_title="Conteggio",
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            height=350,
+            margin=dict(l=40, r=20, t=50, b=40),
+            font=dict(color=self.theme['text'], size=11)
         )
-        
-        return fig
-    
-    def create_boxplot(self, index):
-        """Crea box plot"""
-        col = random.choice(self.numeric_cols)
-        
-        fig = go.Figure()
-        fig.add_trace(go.Box(
-            y=self.df[col].dropna(),
-            name=col,
-            marker_color=self.theme['primary'],
-            line_color=self.theme['primary']
-        ))
-        
-        fig.update_layout(
-            title=f"Distribuzione {col}",
-            yaxis_title=col,
-            plot_bgcolor=self.theme['background'],
-            paper_bgcolor=self.theme['card_bg'],
-            height=400,
-            margin=dict(l=50, r=30, t=50, b=50),
-            font=dict(color=self.theme['text'])
-        )
-        
         return fig
     
     def create_barchart(self, index):
-        """Crea bar chart"""
         col = random.choice(self.categorical_cols)
-        value_counts = self.df[col].value_counts().head(10)
-        
+        value_counts = self.df[col].value_counts().head(8)
         fig = go.Figure()
         fig.add_trace(go.Bar(
             x=value_counts.index,
             y=value_counts.values,
-            marker_color=self.theme['secondary'],
+            marker_color=self.pastel_colors[index % len(self.pastel_colors)],
             text=value_counts.values,
             textposition='outside'
         ))
-        
         fig.update_layout(
-            title=f"Top 10 {col}",
+            title=f"📈 Top {col}",
             xaxis_title=col,
             yaxis_title="Conteggio",
-            plot_bgcolor=self.theme['background'],
-            paper_bgcolor=self.theme['card_bg'],
-            height=400,
-            margin=dict(l=50, r=30, t=50, b=50),
-            font=dict(color=self.theme['text'])
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            height=350,
+            margin=dict(l=40, r=20, t=50, b=40),
+            font=dict(color=self.theme['text'], size=11)
         )
-        
         return fig
     
     def create_scatter(self, index):
-        """Crea scatter plot"""
         col1, col2 = random.sample(self.numeric_cols, 2)
-        data = self.df[[col1, col2]].dropna()
-        
         fig = go.Figure()
         fig.add_trace(go.Scatter(
-            x=data[col1],
-            y=data[col2],
+            x=self.df[col1],
+            y=self.df[col2],
             mode='markers',
             marker=dict(
                 size=8,
-                color=self.theme['primary'],
-                opacity=0.6
-            ),
-            name='Dati'
+                color=self.pastel_colors[index % len(self.pastel_colors)],
+                opacity=0.7
+            )
         ))
-        
         fig.update_layout(
-            title=f"Relazione tra {col1} e {col2}",
+            title=f"🔍 {col1} vs {col2}",
             xaxis_title=col1,
             yaxis_title=col2,
-            plot_bgcolor=self.theme['background'],
-            paper_bgcolor=self.theme['card_bg'],
-            height=400,
-            margin=dict(l=50, r=30, t=50, b=50),
-            font=dict(color=self.theme['text'])
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            height=350,
+            margin=dict(l=40, r=20, t=50, b=40),
+            font=dict(color=self.theme['text'], size=11)
         )
-        
         return fig
     
     def create_timeseries(self, index):
-        """Crea time series"""
-        date_col = self.ml_analyzer.datetime_cols[0]
+        date_col = self.datetime_cols[0]
         metric_col = random.choice(self.numeric_cols)
-        
-        data = self.df[[date_col, metric_col]].dropna()
-        
         fig = go.Figure()
         fig.add_trace(go.Scatter(
-            x=data[date_col],
-            y=data[metric_col],
+            x=self.df[date_col],
+            y=self.df[metric_col],
             mode='lines+markers',
-            line=dict(color=self.theme['primary'], width=2),
-            marker=dict(size=4, color=self.theme['primary']),
-            name=metric_col
+            line=dict(color=self.pastel_colors[index % len(self.pastel_colors)], width=2),
+            marker=dict(size=4, color=self.pastel_colors[index % len(self.pastel_colors)]),
+            fill='tozeroy',
+            fillcolor=f'rgba({int(self.pastel_colors[index % len(self.pastel_colors)][1:3], 16)}, {int(self.pastel_colors[index % len(self.pastel_colors)][3:5], 16)}, {int(self.pastel_colors[index % len(self.pastel_colors)][5:7], 16)}, 0.2)'
         ))
-        
         fig.update_layout(
-            title=f"Trend {metric_col} nel tempo",
+            title=f"📅 {metric_col} nel tempo",
             xaxis_title=date_col,
             yaxis_title=metric_col,
-            plot_bgcolor=self.theme['background'],
-            paper_bgcolor=self.theme['card_bg'],
-            height=400,
-            margin=dict(l=50, r=30, t=50, b=50),
-            font=dict(color=self.theme['text']),
-            hovermode='x unified'
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            height=350,
+            margin=dict(l=40, r=20, t=50, b=40),
+            font=dict(color=self.theme['text'], size=11)
         )
-        
         return fig
     
     def create_heatmap(self, index):
-        """Crea heatmap delle correlazioni"""
-        # Seleziona un sottoinsieme di colonne
-        n_cols = min(len(self.numeric_cols), 6)
+        n_cols = min(len(self.numeric_cols), 5)
         selected_cols = random.sample(self.numeric_cols, n_cols)
-        
         corr = self.df[selected_cols].corr()
-        
         fig = go.Figure(data=go.Heatmap(
             z=corr.values,
             x=corr.columns,
             y=corr.columns,
-            colorscale='RdBu',
-            zmid=0,
+            colorscale='Pastel',
             text=corr.values.round(2),
             texttemplate='%{text}',
-            textfont={"size": 10},
-            hoverongaps=False
+            textfont={"size": 9}
         ))
-        
         fig.update_layout(
-            title="Matrice di Correlazione",
-            plot_bgcolor=self.theme['background'],
-            paper_bgcolor=self.theme['card_bg'],
-            height=500,
-            margin=dict(l=100, r=30, t=50, b=100),
-            font=dict(color=self.theme['text']),
-            xaxis=dict(tickangle=45),
-            yaxis=dict(tickangle=0)
+            title="🔗 Correlazioni",
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            height=350,
+            margin=dict(l=80, r=20, t=50, b=50),
+            font=dict(color=self.theme['text'], size=10)
         )
-        
+        return fig
+    
+    def create_boxplot(self, index):
+        col = random.choice(self.numeric_cols)
+        fig = go.Figure()
+        fig.add_trace(go.Box(
+            y=self.df[col].dropna(),
+            name=col,
+            marker_color=self.pastel_colors[index % len(self.pastel_colors)],
+            line_color=self.pastel_colors[index % len(self.pastel_colors)],
+            boxmean='sd'
+        ))
+        fig.update_layout(
+            title=f"📦 Distribuzione {col}",
+            yaxis_title=col,
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            height=350,
+            margin=dict(l=40, r=20, t=50, b=40),
+            font=dict(color=self.theme['text'], size=11)
+        )
+        return fig
+    
+    def create_pie(self, index):
+        col = random.choice(self.categorical_cols)
+        value_counts = self.df[col].value_counts().head(6)
+        fig = go.Figure(data=[go.Pie(
+            labels=value_counts.index,
+            values=value_counts.values,
+            hole=0.3,
+            marker_colors=self.pastel_colors[:len(value_counts)],
+            textinfo='label+percent',
+            textposition='auto'
+        )])
+        fig.update_layout(
+            title=f"🥧 {col}",
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            height=350,
+            margin=dict(l=20, r=20, t=50, b=20),
+            font=dict(color=self.theme['text'], size=11)
+        )
         return fig
     
     def create_dashboard_html(self):
-        """Crea dashboard HTML con grafici randomizzati"""
+        """Dashboard NON scrollabile, layout 2x2 fisso"""
         
-        # Genera KPI cards
+        # KPI cards
         kpi_html = self.generate_kpi_cards()
         
-        # Genera grafici randomizzati
+        # Genera 4 grafici
         charts_html = ""
-        
         chart_functions = {
             'histogram': self.create_histogram,
-            'boxplot': self.create_boxplot,
             'barchart': self.create_barchart,
             'scatter': self.create_scatter,
             'timeseries': self.create_timeseries,
-            'heatmap': self.create_heatmap
+            'heatmap': self.create_heatmap,
+            'boxplot': self.create_boxplot,
+            'pie': self.create_pie
         }
         
-        for idx, chart_type in enumerate(self.chart_types):
+        for idx, chart_type in enumerate(self.chart_types[:4]):
             try:
                 if chart_type in chart_functions:
                     fig = chart_functions[chart_type](idx)
-                    if fig:
-                        fig_json = json.dumps(fig.to_dict(), cls=PlotlyJSONEncoder)
-                        charts_html += f"""
-                        <div class="chart-container" style="background: {self.theme['card_bg']};">
-                            <div id="chart_{idx}" style="width:100%; height:450px;"></div>
-                        </div>
-                        <script>
-                            (function() {{
-                                var fig_{idx} = {fig_json};
-                                Plotly.newPlot('chart_{idx}', fig_{idx}.data, fig_{idx}.layout);
-                            }})();
-                        </script>
-                        """
-            except Exception as e:
-                charts_html += f"<div class='alert alert-warning'>Errore nel grafico {chart_type}: {str(e)}</div>"
+                    fig_json = json.dumps(fig.to_dict(), cls=PlotlyJSONEncoder)
+                    charts_html += f"""
+                    <div class="chart-card">
+                        <div id="chart_{idx}" style="width:100%; height:100%;"></div>
+                    </div>
+                    <script>
+                        (function() {{
+                            var fig_{idx} = {fig_json};
+                            Plotly.newPlot('chart_{idx}', fig_{idx}.data, fig_{idx}.layout, {{responsive: true}});
+                        }})();
+                    </script>
+                    """
+            except:
+                pass
         
-        # Layout CSS
-        layout_css = self.get_layout_css()
-        
-        # HTML completo
+        # HTML completo con layout fisso 100vh
         html_content = f"""
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Dynamic Dashboard</title>
-            <script src="https://cdn.plot.ly/plotly-3.0.1.min.js" charset="utf-8"></script>
-            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+            <title>Pastel Dashboard</title>
+            <script src="https://cdn.plot.ly/plotly-3.0.1.min.js"></script>
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
             <style>
-                body {{ 
-                    background: {self.theme['background']}; 
-                    font-family: Arial, sans-serif;
-                    margin: 0; 
-                    padding: 20px; 
+                * {{
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
                 }}
-                .dashboard-container {{ 
-                    max-width: 1400px; 
-                    margin: 0 auto; 
+                
+                body {{
+                    background: {self.theme['background']};
+                    font-family: 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif;
+                    height: 100vh;
+                    width: 100vw;
+                    overflow: hidden;
+                    padding: 16px;
                 }}
-                .dashboard-header {{
-                    text-align: center;
-                    padding: 30px;
-                    background: linear-gradient(135deg, {self.theme['primary']}, {self.theme['secondary']});
-                    border-radius: 15px;
-                    margin-bottom: 30px;
-                    color: white;
+                
+                .dashboard {{
+                    height: 100%;
+                    width: 100%;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 16px;
                 }}
-                .dashboard-header h1 {{
-                    font-size: 2.5em;
-                    margin-bottom: 10px;
-                }}
-                .kpi-card {{ 
-                    background: {self.theme['card_bg']}; 
-                    border-radius: 10px; 
-                    padding: 20px; 
-                    margin: 10px; 
-                    box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
-                    text-align: center;
-                    border-top: 3px solid {self.theme['primary']};
-                }}
-                .kpi-value {{ 
-                    font-size: 2em; 
-                    font-weight: bold; 
-                    color: {self.theme['primary']}; 
-                }}
-                .kpi-label {{ 
-                    color: {self.theme['text']}; 
-                    font-size: 0.85em; 
-                    text-transform: uppercase; 
-                    letter-spacing: 1px;
-                }}
-                .chart-container {{ 
-                    background: {self.theme['card_bg']}; 
-                    border-radius: 10px; 
-                    padding: 20px; 
-                    margin: 20px 0; 
-                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                }}
-                .insight-box {{ 
+                
+                /* Header */
+                .header {{
                     background: {self.theme['card_bg']};
-                    border-left: 4px solid {self.theme['primary']};
-                    padding: 20px; 
-                    margin: 20px 0; 
-                    border-radius: 8px;
+                    border-radius: 24px;
+                    padding: 16px 24px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.04);
                 }}
-                .recommendation {{ 
-                    background: {self.theme['background']}; 
-                    border-left: 4px solid {self.theme['secondary']}; 
-                    padding: 15px; 
-                    margin: 10px 0; 
-                    border-radius: 8px;
-                }}
-                .alert-warning {{
-                    background-color: #fff3cd;
-                    border: 1px solid #ffecb5;
-                    color: #856404;
-                    padding: 12px;
-                    border-radius: 4px;
-                    margin: 10px 0;
-                }}
-                .footer {{
-                    text-align: center;
-                    padding: 20px;
-                    margin-top: 40px;
+                .header h1 {{
+                    font-size: 1.5rem;
                     color: {self.theme['text']};
+                    font-weight: 600;
+                }}
+                .header h1 i {{
+                    color: {self.theme['primary']};
+                    margin-right: 10px;
+                }}
+                .badge {{
+                    background: {self.theme['primary']}20;
+                    padding: 8px 16px;
+                    border-radius: 40px;
+                    font-size: 0.8rem;
+                    color: {self.theme['text']};
+                }}
+                
+                /* KPI Row */
+                .kpi-row {{
+                    display: grid;
+                    grid-template-columns: repeat(4, 1fr);
+                    gap: 16px;
+                    flex-shrink: 0;
+                }}
+                .kpi-card {{
+                    background: {self.theme['card_bg']};
+                    border-radius: 20px;
+                    padding: 16px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+                    transition: transform 0.2s;
+                    border: 1px solid {self.theme['primary']}30;
+                }}
+                .kpi-card:hover {{
+                    transform: translateY(-2px);
+                }}
+                .kpi-label {{
+                    font-size: 0.75rem;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                    color: {self.theme['text']}aa;
+                    margin-bottom: 8px;
+                }}
+                .kpi-value {{
+                    font-size: 2rem;
+                    font-weight: 700;
+                    color: {self.theme['text']};
+                }}
+                .kpi-icon {{
+                    font-size: 1.8rem;
+                    color: {self.theme['primary']};
                     opacity: 0.7;
                 }}
-                {layout_css}
+                
+                /* Grid grafici 2x2 - occupa tutto lo spazio rimanente */
+                .charts-grid {{
+                    flex: 1;
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    grid-template-rows: 1fr 1fr;
+                    gap: 16px;
+                    min-height: 0;
+                }}
+                .chart-card {{
+                    background: {self.theme['card_bg']};
+                    border-radius: 24px;
+                    padding: 16px;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+                    display: flex;
+                    flex-direction: column;
+                    overflow: hidden;
+                    border: 1px solid rgba(0,0,0,0.03);
+                }}
+                
+                /* Footer */
+                .footer {{
+                    flex-shrink: 0;
+                    text-align: center;
+                    padding: 8px;
+                    font-size: 0.7rem;
+                    color: {self.theme['text']}aa;
+                }}
+                
+                /* Responsive */
+                @media (max-width: 1024px) {{
+                    .kpi-value {{ font-size: 1.5rem; }}
+                    .header h1 {{ font-size: 1.2rem; }}
+                }}
+                @media (max-width: 768px) {{
+                    .kpi-row {{ grid-template-columns: repeat(2, 1fr); }}
+                    .charts-grid {{ grid-template-columns: 1fr; grid-template-rows: auto; overflow-y: auto; }}
+                    body {{ overflow-y: auto; height: auto; }}
+                    .dashboard {{ height: auto; }}
+                }}
             </style>
         </head>
         <body>
-            <div class="dashboard-container">
-                <div class="dashboard-header">
-                    <h1>🎲 Dynamic ML Dashboard</h1>
-                    <p>Tema: {self.theme['name']} | Layout: {self.layout_type} | {len(self.chart_types)} grafici</p>
+            <div class="dashboard">
+                <!-- Header -->
+                <div class="header">
+                    <h1><i class="fas fa-chalkboard-user"></i> Pastel Dashboard</h1>
+                    <div class="badge">
+                        <i class="fas fa-chart-line"></i> AI Analytics • {datetime.now().strftime('%d/%m/%Y')}
+                    </div>
                 </div>
                 
-                <!-- KPI Section -->
-                <div class="row">
+                <!-- KPI Row -->
+                <div class="kpi-row">
                     {kpi_html}
                 </div>
                 
-                <!-- Charts Section -->
-                {charts_html}
-                
-                <!-- ML Insights -->
-                <div class="insight-box">
-                    <h3>🤖 Machine Learning Insights</h3>
-                    <div class="row">
-                        <div class="col-md-4">
-                            <p><strong>Qualità Dati:</strong> {self.insights['data_quality'].get('score', 0):.1f}/100</p>
-                        </div>
-                        <div class="col-md-4">
-                            <p><strong>Dati Mancanti:</strong> {self.insights['data_quality'].get('missing_percentage', 0):.1f}%</p>
-                        </div>
-                        <div class="col-md-4">
-                            <p><strong>Outlier:</strong> {len(self.insights.get('anomalies', []))} righe</p>
-                        </div>
-                    </div>
+                <!-- Charts Grid 2x2 (NO SCROLL) -->
+                <div class="charts-grid">
+                    {charts_html}
                 </div>
                 
-                <!-- Tableau Recommendations -->
-                <div class="chart-container">
-                    <h3>📋 Come replicare in Tableau</h3>
-        """
-        
-        for rec in self.insights.get('recommendations', [])[:5]:
-            html_content += f"""
-                    <div class="recommendation">
-                        <strong>{rec.get('type', 'Info').upper()}:</strong> {rec.get('text', '')}<br>
-                        <small>🎯 {rec.get('action', '')}</small>
-                    </div>
-            """
-        
-        html_content += f"""
-                </div>
-                
+                <!-- Footer -->
                 <div class="footer">
-                    <p>🤖 Generato da AI Data Engineer | Theme: {self.theme['name']} | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+                    <i class="fas fa-robot"></i> Generato con IA • Design pastello • Layout fisso senza scroll
                 </div>
             </div>
         </body>
@@ -482,59 +435,40 @@ class DashboardGenerator:
         
         return html_content
     
-    def get_layout_css(self):
-        """Restituisce CSS per il layout selezionato"""
-        if self.layout_type == 'grid':
-            return """
-            .chart-container {
-                display: inline-block;
-                width: 48%;
-                margin: 1%;
-                vertical-align: top;
-            }
-            @media (max-width: 768px) {
-                .chart-container { width: 98%; }
-            }
-            """
-        elif self.layout_type == 'waterfall':
-            return """
-            .chart-container {
-                width: 95%;
-                margin: 20px auto;
-            }
-            """
-        else:
-            return """
-            .chart-container {
-                width: 100%;
-                margin: 20px 0;
-            }
-            """
-    
     def generate_kpi_cards(self):
-        """Genera KPI cards"""
+        """Genera 4 KPI cards con icone"""
+        icons = ['💰', '📊', '🎯', '⚡', '📦', '👥', '💹', '📈']
         kpi_html = ""
-        metrics_to_show = self.numeric_cols[:min(4, len(self.numeric_cols))]
         
-        for col in metrics_to_show:
+        metrics = self.numeric_cols[:4] if len(self.numeric_cols) >= 4 else self.numeric_cols
+        while len(metrics) < 4:
+            metrics.append(self.numeric_cols[0] if self.numeric_cols else "Dati")
+        
+        for i, col in enumerate(metrics[:4]):
             try:
-                avg_val = self.df[col].mean()
-                if pd.isna(avg_val):
-                    continue
+                if col in self.numeric_cols:
+                    value = self.df[col].mean()
+                    if pd.isna(value):
+                        value = 0
+                    val_display = f"{value:,.0f}" if abs(value) > 1000 else f"{value:,.2f}"
+                else:
+                    val_display = str(self.df[col].nunique()) if col in self.categorical_cols else "—"
                 
                 kpi_html += f"""
-                    <div class="col-md-3">
-                        <div class="kpi-card">
+                <div class="kpi-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
                             <div class="kpi-label">{col.upper()}</div>
-                            <div class="kpi-value">{avg_val:,.2f}</div>
-                            <small>Media</small>
+                            <div class="kpi-value">{val_display}</div>
                         </div>
+                        <div class="kpi-icon">{icons[i % len(icons)]}</div>
                     </div>
+                </div>
                 """
             except:
                 continue
         
         if not kpi_html:
-            kpi_html = '<div class="col-12"><p class="text-center">Nessuna metrica disponibile</p></div>'
+            kpi_html = '<div class="kpi-card">Nessun dato</div>' * 4
         
         return kpi_html
