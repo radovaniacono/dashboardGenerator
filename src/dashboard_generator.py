@@ -6,6 +6,8 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 import random
+from typing import List, Dict, Tuple
+
 
 class DashboardGenerator:
     def __init__(self, df, ml_analyzer, insights):
@@ -15,472 +17,712 @@ class DashboardGenerator:
         self.numeric_cols = ml_analyzer.numeric_cols if ml_analyzer else []
         self.categorical_cols = ml_analyzer.categorical_cols if ml_analyzer else []
         self.datetime_cols = ml_analyzer.datetime_cols if ml_analyzer else []
-        
+
         # Palette pastello
         self.pastel_colors = [
-            '#A8E6CF', '#FFD3B6', '#FFAAA5', '#FF8B94',
-            '#B5EAD7', '#C7CEEA', '#E2F0CB', '#FFDAC1',
-            '#B0E0E6', '#F7C6C6', '#C9E4DE', '#FDD0F2',
-            '#D4F1F9', '#FFE5B4', '#D0F0FD', '#E8D0F0'
+            "#A8E6CF",
+            "#FFD3B6",
+            "#FFAAA5",
+            "#FF8B94",
+            "#B5EAD7",
+            "#C7CEEA",
+            "#E2F0CB",
+            "#FFDAC1",
+            "#B0E0E6",
+            "#F7C6C6",
+            "#C9E4DE",
+            "#FDD0F2",
+            "#D4F1F9",
+            "#FFE5B4",
+            "#D0F0FD",
+            "#E8D0F0",
         ]
-        
+
         # Tema pastello
         self.theme = {
-            'primary': '#A8E6CF',
-            'secondary': '#FFD3B6',
-            'tertiary': '#C7CEEA',
-            'background': '#F9FBF4',
-            'card_bg': '#FFFFFF',
-            'text': '#4A5B6E',
-            'text_light': '#8A9BB0',
-            'accent': '#FFB7B2',
-            'border': '#E8ECF0'
+            "primary": "#A8E6CF",
+            "secondary": "#FFD3B6",
+            "tertiary": "#C7CEEA",
+            "background": "#F9FBF4",
+            "card_bg": "#FFFFFF",
+            "text": "#4A5B6E",
+            "text_light": "#8A9BB0",
+            "accent": "#FFB7B2",
+            "border": "#E8ECF0",
         }
-        
+
+        # Emoji/Icone per i grafici
+        self.chart_icons = {
+            "line": "📈",
+            "bar": "📊",
+            "scatter": "🔍",
+            "bubble": "🫧",
+            "heatmap": "🔗",
+            "histogram": "📈",
+            "boxplot": "📦",
+            "treemap": "🗂️",
+            "radar": "🔄",
+            "violin": "🎻",
+            "area": "📊",
+            "pie": "🥧",
+            "map": "🗺️",
+        }
+
         # Seleziona fino a 8 grafici in base ai dati
         self.chart_types = self.select_charts_advanced()
-    
+
+        # Genera KPI dinamici e filtri intelligenti
+        self.kpis = self.generate_dynamic_kpis()
+        self.suggested_filters = self.suggest_intelligent_filters()
+        self.has_geographic_data = self.detect_geographic_data()
+        self.layout_type = self.randomize_layout_structure()
+
     def select_charts_advanced(self):
         """Seleziona automaticamente fino a 8 grafici in base ai dati disponibili"""
         charts = []
-        
+
         # 1. Time series (se ci sono dati temporali)
         if self.datetime_cols and self.numeric_cols:
-            charts.append('line')
-        
+            charts.append("line")
+
         # 2. Bar chart per categorie (se ci sono dati categorici)
         if self.categorical_cols:
-            charts.append('bar')
-        
+            charts.append("bar")
+
         # 3. Scatter plot (se ci sono almeno 2 metriche numeriche)
         if len(self.numeric_cols) >= 2:
-            charts.append('scatter')
-        
+            charts.append("scatter")
+
         # 4. Bubble chart (se ci sono almeno 3 metriche numeriche)
         if len(self.numeric_cols) >= 3:
-            charts.append('bubble')
-        
+            charts.append("bubble")
+
         # 5. Heatmap correlazioni (se ci sono almeno 3 metriche numeriche)
         if len(self.numeric_cols) >= 3:
-            charts.append('heatmap')
-        
+            charts.append("heatmap")
+
         # 6. Istogramma distribuzione
         if self.numeric_cols:
-            charts.append('histogram')
-        
+            charts.append("histogram")
+
         # 7. Box plot per outlier
         if self.numeric_cols:
-            charts.append('boxplot')
-        
+            charts.append("boxplot")
+
         # 8. Treemap composizione
         if self.categorical_cols and self.numeric_cols:
-            charts.append('treemap')
-        
+            charts.append("treemap")
+
         # 9. Radar chart (se abbastanza metriche)
         if len(self.numeric_cols) >= 4:
-            charts.append('radar')
-        
+            charts.append("radar")
+
         # 10. Violin plot (alternativa distribuzione)
         if self.numeric_cols:
-            charts.append('violin')
-        
+            charts.append("violin")
+
         # 11. Area chart (se dati temporali)
         if self.datetime_cols and self.numeric_cols:
-            charts.append('area')
-        
+            charts.append("area")
+
         # 12. Pie chart (se poche categorie)
         if self.categorical_cols and self.df[self.categorical_cols[0]].nunique() <= 8:
-            charts.append('pie')
-        
+            charts.append("pie")
+
         # Seleziona massimo 8 grafici, assicurando varietà
         selected_charts = []
-        chart_priority = ['histogram', 'bar', 'line', 'scatter', 'heatmap', 'boxplot', 'treemap', 'bubble']
-        
+        chart_priority = [
+            "histogram",
+            "bar",
+            "line",
+            "scatter",
+            "heatmap",
+            "boxplot",
+            "treemap",
+            "bubble",
+        ]
+
         for chart in chart_priority:
             if chart in charts and len(selected_charts) < 8:
                 selected_charts.append(chart)
-        
+
         # Se ancora meno di 4, aggiungi altri disponibili
         for chart in charts:
             if chart not in selected_charts and len(selected_charts) < 8:
                 selected_charts.append(chart)
-        
+
         # Assicura almeno 4 grafici
         while len(selected_charts) < 4 and self.numeric_cols:
-            selected_charts.append('histogram')
-        
+            selected_charts.append("histogram")
+
         return selected_charts
-    
-    def create_line_chart(self, index):
+
+    def generate_dynamic_kpis(self) -> List[Dict]:
+        """Genera KPI dinamici basati sui dati disponibili (0 - infiniti)"""
+        kpis = []
+
+        # KPI 1: Numero di record
+        kpis.append(
+            {
+                "title": "Record Totali",
+                "value": f"{len(self.df):,.0f}",
+                "icon": "📊",
+                "trend": None,
+                "color": "#A8E6CF",
+            }
+        )
+
+        # KPI 2-3: Metriche numeriche principali
+        if self.numeric_cols:
+            for i, col in enumerate(self.numeric_cols[:2]):
+                avg_val = self.df[col].mean()
+                kpis.append(
+                    {
+                        "title": f"Media {col}",
+                        "value": f"{avg_val:,.2f}",
+                        "icon": "📈",
+                        "trend": None,
+                        "color": self.pastel_colors[i % len(self.pastel_colors)],
+                    }
+                )
+
+        # KPI 4: Categoria più frequente
+        if self.categorical_cols:
+            most_freq_col = self.categorical_cols[0]
+            most_freq_val = self.df[most_freq_col].value_counts().index[0]
+            kpis.append(
+                {
+                    "title": f"{most_freq_col} Top",
+                    "value": str(most_freq_val),
+                    "icon": "🏆",
+                    "trend": None,
+                    "color": "#FFD3B6",
+                }
+            )
+
+        # KPI 5: Data range (se ci sono dati temporali)
+        if self.datetime_cols:
+            date_col = self.datetime_cols[0]
+            date_range = f"{self.df[date_col].min()} a {self.df[date_col].max()}"
+            kpis.append(
+                {
+                    "title": "Intervallo Tempo",
+                    "value": str(date_range),
+                    "icon": "📅",
+                    "trend": None,
+                    "color": "#C7CEEA",
+                }
+            )
+
+        # KPI 6: Completezza dati
+        completeness = (
+            1 - (self.df.isnull().sum().sum() / (len(self.df) * len(self.df.columns)))
+        ) * 100
+        kpis.append(
+            {
+                "title": "Completezza",
+                "value": f"{completeness:.1f}%",
+                "icon": "✅",
+                "trend": None,
+                "color": "#B5EAD7",
+            }
+        )
+
+        return kpis
+
+    def suggest_intelligent_filters(self) -> List[Dict]:
+        """Suggerisce fino a 2 filtri intelligenti basati sui dati"""
+        filters = []
+
+        # Filtro 1: Categoria con buona varietà
+        if self.categorical_cols:
+            for col in self.categorical_cols:
+                unique_count = self.df[col].nunique()
+                if 2 <= unique_count <= 15:  # Buona varietà per filtro
+                    filters.append(
+                        {
+                            "column": col,
+                            "type": "categorical",
+                            "values": self.df[col].unique().tolist()[:10],
+                            "icon": "🏷️",
+                        }
+                    )
+                    break
+
+        # Filtro 2: Range numerico (se disponibile)
+        if self.numeric_cols and len(filters) < 2:
+            numeric_col = self.numeric_cols[0]
+            filters.append(
+                {
+                    "column": numeric_col,
+                    "type": "numeric_range",
+                    "min": float(self.df[numeric_col].min()),
+                    "max": float(self.df[numeric_col].max()),
+                    "icon": "📊",
+                }
+            )
+
+        # Filtro 3: Temporale (se disponibile)
+        if self.datetime_cols and len(filters) < 2:
+            date_col = self.datetime_cols[0]
+            filters.append(
+                {
+                    "column": date_col,
+                    "type": "date_range",
+                    "min": str(self.df[date_col].min()),
+                    "max": str(self.df[date_col].max()),
+                    "icon": "📅",
+                }
+            )
+
+        return filters[:2]  # Max 2 filtri
+
+    def detect_geographic_data(self) -> bool:
+        """Rileva se il dataset contiene coordinate geografiche"""
+        geo_keywords = [
+            "lat",
+            "lon",
+            "latitude",
+            "longitude",
+            "country",
+            "city",
+            "region",
+            "province",
+        ]
+
+        for col in self.df.columns:
+            col_lower = col.lower()
+            if any(keyword in col_lower for keyword in geo_keywords):
+                # Verifica se è effettivamente numerico (per lat/lon)
+                if "lat" in col_lower or "lon" in col_lower:
+                    if pd.api.types.is_numeric_dtype(self.df[col]):
+                        return True
+                else:
+                    return True
+
+        return False
+
+    def randomize_layout_structure(self) -> str:
+        """Randomizza il tipo di layout della dashboard"""
+        layout_types = [
+            "grid_2col",  # 2 colonne standard
+            "grid_3col",  # 3 colonne compatte
+            "asymmetric",  # Layout asimmetrico (1-2-1)
+            "featured",  # Un grafico grande in primo piano
+            "timeline",  # Timeline con grafici in cascata
+        ]
+        return random.choice(layout_types)
+
+    def get_chart_icon(self, chart_type: str) -> str:
+        """Ritorna l'icona/emoji per un tipo di grafico"""
+        return self.chart_icons.get(chart_type, "📊")
         """Grafico a linee per serie temporali"""
         date_col = self.datetime_cols[0]
         metric_col = random.choice(self.numeric_cols)
-        
+
         fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=self.df[date_col],
-            y=self.df[metric_col],
-            mode='lines+markers',
-            line=dict(color=self.pastel_colors[index % len(self.pastel_colors)], width=2),
-            marker=dict(size=6, color=self.pastel_colors[index % len(self.pastel_colors)]),
-            fill='tozeroy',
-            fillcolor=f'rgba({int(self.pastel_colors[index % len(self.pastel_colors)][1:3], 16)}, {int(self.pastel_colors[index % len(self.pastel_colors)][3:5], 16)}, {int(self.pastel_colors[index % len(self.pastel_colors)][5:7], 16)}, 0.2)'
-        ))
-        
+        fig.add_trace(
+            go.Scatter(
+                x=self.df[date_col],
+                y=self.df[metric_col],
+                mode="lines+markers",
+                line=dict(
+                    color=self.pastel_colors[index % len(self.pastel_colors)], width=2
+                ),
+                marker=dict(
+                    size=6, color=self.pastel_colors[index % len(self.pastel_colors)]
+                ),
+                fill="tozeroy",
+                fillcolor=f"rgba({int(self.pastel_colors[index % len(self.pastel_colors)][1:3], 16)}, {int(self.pastel_colors[index % len(self.pastel_colors)][3:5], 16)}, {int(self.pastel_colors[index % len(self.pastel_colors)][5:7], 16)}, 0.2)",
+            )
+        )
+
         fig.update_layout(
             title=f"📈 {metric_col} nel tempo",
             xaxis_title=date_col,
             yaxis_title=metric_col,
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
             height=350,
             margin=dict(l=40, r=20, t=50, b=40),
-            font=dict(color=self.theme['text'], size=11),
-            hovermode='x unified'
+            font=dict(color=self.theme["text"], size=11),
+            hovermode="x unified",
         )
         return fig
-    
+
     def create_bar_chart(self, index):
         """Grafico a barre per categorie"""
         col = random.choice(self.categorical_cols)
         value_counts = self.df[col].value_counts().head(8)
-        
+
         fig = go.Figure()
-        fig.add_trace(go.Bar(
-            x=value_counts.index,
-            y=value_counts.values,
-            marker_color=self.pastel_colors[index % len(self.pastel_colors)],
-            text=value_counts.values,
-            textposition='outside',
-            marker_line_color='white',
-            marker_line_width=1
-        ))
-        
+        fig.add_trace(
+            go.Bar(
+                x=value_counts.index,
+                y=value_counts.values,
+                marker_color=self.pastel_colors[index % len(self.pastel_colors)],
+                text=value_counts.values,
+                textposition="outside",
+                marker_line_color="white",
+                marker_line_width=1,
+            )
+        )
+
         fig.update_layout(
             title=f"📊 Top {col}",
             xaxis_title=col,
             yaxis_title="Conteggio",
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
             height=350,
             margin=dict(l=40, r=20, t=50, b=40),
-            font=dict(color=self.theme['text'], size=11),
-            xaxis_tickangle=-45 if len(value_counts) > 5 else 0
+            font=dict(color=self.theme["text"], size=11),
+            xaxis_tickangle=-45 if len(value_counts) > 5 else 0,
         )
         return fig
-    
+
     def create_scatter_chart(self, index):
         """Scatter plot per correlazione tra due metriche"""
         col1, col2 = random.sample(self.numeric_cols, 2)
-        
+
         fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=self.df[col1],
-            y=self.df[col2],
-            mode='markers',
-            marker=dict(
-                size=10,
-                color=self.pastel_colors[index % len(self.pastel_colors)],
-                opacity=0.6,
-                line=dict(width=1, color='white')
-            ),
-            hovertemplate=f'{col1}: %{{x}}<br>{col2}: %{{y}}<extra></extra>'
-        ))
-        
+        fig.add_trace(
+            go.Scatter(
+                x=self.df[col1],
+                y=self.df[col2],
+                mode="markers",
+                marker=dict(
+                    size=10,
+                    color=self.pastel_colors[index % len(self.pastel_colors)],
+                    opacity=0.6,
+                    line=dict(width=1, color="white"),
+                ),
+                hovertemplate=f"{col1}: %{{x}}<br>{col2}: %{{y}}<extra></extra>",
+            )
+        )
+
         fig.update_layout(
             title=f"🔍 {col1} vs {col2}",
             xaxis_title=col1,
             yaxis_title=col2,
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
             height=350,
             margin=dict(l=40, r=20, t=50, b=40),
-            font=dict(color=self.theme['text'], size=11)
+            font=dict(color=self.theme["text"], size=11),
         )
         return fig
-    
+
     def create_bubble_chart(self, index):
         """Bubble chart con 3 metriche"""
         col1, col2, col3 = random.sample(self.numeric_cols, 3)
-        
+
         # Normalizza la dimensione delle bolle
-        size_norm = (self.df[col3] - self.df[col3].min()) / (self.df[col3].max() - self.df[col3].min()) * 50 + 10
-        
+        size_norm = (self.df[col3] - self.df[col3].min()) / (
+            self.df[col3].max() - self.df[col3].min()
+        ) * 50 + 10
+
         fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=self.df[col1],
-            y=self.df[col2],
-            mode='markers',
-            marker=dict(
-                size=size_norm,
-                color=self.pastel_colors[index % len(self.pastel_colors)],
-                opacity=0.6,
-                sizemode='area',
-                sizeref=2.*max(size_norm)/(40**2),
-                line=dict(width=1, color='white')
-            ),
-            text=self.df.index,
-            hovertemplate=f'{col1}: %{{x}}<br>{col2}: %{{y}}<br>{col3}: %{{marker.size}}<extra></extra>'
-        ))
-        
+        fig.add_trace(
+            go.Scatter(
+                x=self.df[col1],
+                y=self.df[col2],
+                mode="markers",
+                marker=dict(
+                    size=size_norm,
+                    color=self.pastel_colors[index % len(self.pastel_colors)],
+                    opacity=0.6,
+                    sizemode="area",
+                    sizeref=2.0 * max(size_norm) / (40**2),
+                    line=dict(width=1, color="white"),
+                ),
+                text=self.df.index,
+                hovertemplate=f"{col1}: %{{x}}<br>{col2}: %{{y}}<br>{col3}: %{{marker.size}}<extra></extra>",
+            )
+        )
+
         fig.update_layout(
             title=f"🫧 {col1} vs {col2} (dimensione={col3})",
             xaxis_title=col1,
             yaxis_title=col2,
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
             height=350,
             margin=dict(l=40, r=20, t=50, b=40),
-            font=dict(color=self.theme['text'], size=11)
+            font=dict(color=self.theme["text"], size=11),
         )
         return fig
-    
+
     def create_heatmap_chart(self, index):
         """Heatmap delle correlazioni"""
         n_cols = min(len(self.numeric_cols), 6)
         selected_cols = random.sample(self.numeric_cols, n_cols)
         corr = self.df[selected_cols].corr()
-        
-        fig = go.Figure(data=go.Heatmap(
-            z=corr.values,
-            x=corr.columns,
-            y=corr.columns,
-            colorscale='Pastel',
-            zmid=0,
-            text=corr.values.round(2),
-            texttemplate='%{text}',
-            textfont={"size": 10},
-            hoverongaps=False
-        ))
-        
+
+        fig = go.Figure(
+            data=go.Heatmap(
+                z=corr.values,
+                x=corr.columns,
+                y=corr.columns,
+                colorscale="pinkyl",
+                zmid=0,
+                text=corr.values.round(2),
+                texttemplate="%{text}",
+                textfont={"size": 10},
+                hoverongaps=False,
+            )
+        )
+
         fig.update_layout(
             title=f"🔗 Matrice di Correlazione",
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
             height=370,
             margin=dict(l=80, r=20, t=50, b=50),
-            font=dict(color=self.theme['text'], size=10),
+            font=dict(color=self.theme["text"], size=10),
             xaxis=dict(tickangle=45),
-            yaxis=dict(tickangle=0)
+            yaxis=dict(tickangle=0),
         )
         return fig
-    
+
     def create_histogram_chart(self, index):
         """Istogramma distribuzione"""
         col = random.choice(self.numeric_cols)
         data = self.df[col].dropna()
-        
+
         fig = go.Figure()
-        fig.add_trace(go.Histogram(
-            x=data,
-            nbinsx=min(25, int(np.sqrt(len(data)))),
-            marker_color=self.pastel_colors[index % len(self.pastel_colors)],
-            marker_line_color='white',
-            marker_line_width=1,
-            opacity=0.85
-        ))
-        
+        fig.add_trace(
+            go.Histogram(
+                x=data,
+                nbinsx=min(25, int(np.sqrt(len(data)))),
+                marker_color=self.pastel_colors[index % len(self.pastel_colors)],
+                marker_line_color="white",
+                marker_line_width=1,
+                opacity=0.85,
+            )
+        )
+
         fig.update_layout(
             title=f"📊 Distribuzione {col}",
             xaxis_title=col,
             yaxis_title="Frequenza",
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
             height=350,
             margin=dict(l=40, r=20, t=50, b=40),
-            font=dict(color=self.theme['text'], size=11)
+            font=dict(color=self.theme["text"], size=11),
         )
         return fig
-    
+
     def create_boxplot_chart(self, index):
         """Box plot per outlier"""
         col = random.choice(self.numeric_cols)
-        
+
         fig = go.Figure()
-        fig.add_trace(go.Box(
-            y=self.df[col].dropna(),
-            name=col,
-            marker_color=self.pastel_colors[index % len(self.pastel_colors)],
-            line_color=self.pastel_colors[index % len(self.pastel_colors)],
-            boxmean='sd',
-            fillcolor=f'rgba({int(self.pastel_colors[index % len(self.pastel_colors)][1:3], 16)}, {int(self.pastel_colors[index % len(self.pastel_colors)][3:5], 16)}, {int(self.pastel_colors[index % len(self.pastel_colors)][5:7], 16)}, 0.3)'
-        ))
-        
+        fig.add_trace(
+            go.Box(
+                y=self.df[col].dropna(),
+                name=col,
+                marker_color=self.pastel_colors[index % len(self.pastel_colors)],
+                line_color=self.pastel_colors[index % len(self.pastel_colors)],
+                boxmean="sd",
+                fillcolor=f"rgba({int(self.pastel_colors[index % len(self.pastel_colors)][1:3], 16)}, {int(self.pastel_colors[index % len(self.pastel_colors)][3:5], 16)}, {int(self.pastel_colors[index % len(self.pastel_colors)][5:7], 16)}, 0.3)",
+            )
+        )
+
         fig.update_layout(
             title=f"📦 Distribuzione {col}",
             yaxis_title=col,
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
             height=350,
             margin=dict(l=40, r=20, t=50, b=40),
-            font=dict(color=self.theme['text'], size=11)
+            font=dict(color=self.theme["text"], size=11),
         )
         return fig
-    
+
     def create_treemap_chart(self, index):
         """Treemap composizione"""
         cat_col = random.choice(self.categorical_cols)
         num_col = random.choice(self.numeric_cols)
-        
+
         aggregated = self.df.groupby(cat_col)[num_col].sum().head(12)
-        
-        fig = go.Figure(go.Treemap(
-            labels=aggregated.index,
-            parents=[""] * len(aggregated),
-            values=aggregated.values,
-            marker_colors=aggregated.values,
-            marker_colorscale='Pastel',
-            textinfo="label+value",
-            hovertemplate='%{label}: %{value:,.0f}<extra></extra>'
-        ))
-        
+
+        fig = go.Figure(
+            go.Treemap(
+                labels=aggregated.index,
+                parents=[""] * len(aggregated),
+                values=aggregated.values,
+                marker_colors=aggregated.values,
+                marker_colorscale="Pastel",
+                textinfo="label+value",
+                hovertemplate="%{label}: %{value:,.0f}<extra></extra>",
+            )
+        )
+
         fig.update_layout(
             title=f"🗂️ {num_col} per {cat_col}",
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
             height=350,
             margin=dict(l=20, r=20, t=50, b=20),
-            font=dict(color=self.theme['text'], size=10)
+            font=dict(color=self.theme["text"], size=10),
         )
         return fig
-    
+
     def create_radar_chart(self, index):
         """Radar chart comparativo"""
         # Prendi le medie delle prime 5 metriche
         metrics = self.numeric_cols[:5]
         averages = [self.df[col].mean() for col in metrics]
-        
+
         # Normalizza
         max_vals = [self.df[col].max() for col in metrics]
-        normalized = [avg/maxv if maxv > 0 else 0 for avg, maxv in zip(averages, max_vals)]
-        
-        fig = go.Figure(data=go.Scatterpolar(
-            r=normalized,
-            theta=metrics,
-            fill='toself',
-            marker=dict(color=self.pastel_colors[index % len(self.pastel_colors)]),
-            line=dict(color=self.pastel_colors[index % len(self.pastel_colors)], width=2),
-            name='Media Normalizzata'
-        ))
-        
+        normalized = [
+            avg / maxv if maxv > 0 else 0 for avg, maxv in zip(averages, max_vals)
+        ]
+
+        fig = go.Figure(
+            data=go.Scatterpolar(
+                r=normalized,
+                theta=metrics,
+                fill="toself",
+                marker=dict(color=self.pastel_colors[index % len(self.pastel_colors)]),
+                line=dict(
+                    color=self.pastel_colors[index % len(self.pastel_colors)], width=2
+                ),
+                name="Media Normalizzata",
+            )
+        )
+
         fig.update_layout(
             title=f"🔄 Confronto Metriche",
             polar=dict(
                 radialaxis=dict(visible=True, range=[0, 1], tickfont=dict(size=9)),
-                angularaxis=dict(tickfont=dict(size=9))
+                angularaxis=dict(tickfont=dict(size=9)),
             ),
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
             height=350,
             margin=dict(l=40, r=40, t=50, b=40),
-            font=dict(color=self.theme['text'], size=10)
+            font=dict(color=self.theme["text"], size=10),
         )
         return fig
-    
+
     def create_violin_chart(self, index):
         """Violin plot per densità"""
         col = random.choice(self.numeric_cols)
-        
+
         fig = go.Figure()
-        fig.add_trace(go.Violin(
-            y=self.df[col].dropna(),
-            name=col,
-            box_visible=True,
-            meanline_visible=True,
-            fillcolor=self.pastel_colors[index % len(self.pastel_colors)],
-            line_color=self.pastel_colors[index % len(self.pastel_colors)],
-            opacity=0.7
-        ))
-        
+        fig.add_trace(
+            go.Violin(
+                y=self.df[col].dropna(),
+                name=col,
+                box_visible=True,
+                meanline_visible=True,
+                fillcolor=self.pastel_colors[index % len(self.pastel_colors)],
+                line_color=self.pastel_colors[index % len(self.pastel_colors)],
+                opacity=0.7,
+            )
+        )
+
         fig.update_layout(
             title=f"🎻 Densità {col}",
             yaxis_title=col,
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
             height=350,
             margin=dict(l=40, r=20, t=50, b=40),
-            font=dict(color=self.theme['text'], size=11)
+            font=dict(color=self.theme["text"], size=11),
         )
         return fig
-    
+
     def create_area_chart(self, index):
         """Area chart per volume cumulativo"""
         date_col = self.datetime_cols[0]
         metric_col = random.choice(self.numeric_cols)
-        
+
         fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=self.df[date_col],
-            y=self.df[metric_col],
-            mode='lines',
-            line=dict(color=self.pastel_colors[index % len(self.pastel_colors)], width=2),
-            fill='tozeroy',
-            fillcolor=f'rgba({int(self.pastel_colors[index % len(self.pastel_colors)][1:3], 16)}, {int(self.pastel_colors[index % len(self.pastel_colors)][3:5], 16)}, {int(self.pastel_colors[index % len(self.pastel_colors)][5:7], 16)}, 0.4)'
-        ))
-        
+        fig.add_trace(
+            go.Scatter(
+                x=self.df[date_col],
+                y=self.df[metric_col],
+                mode="lines",
+                line=dict(
+                    color=self.pastel_colors[index % len(self.pastel_colors)], width=2
+                ),
+                fill="tozeroy",
+                fillcolor=f"rgba({int(self.pastel_colors[index % len(self.pastel_colors)][1:3], 16)}, {int(self.pastel_colors[index % len(self.pastel_colors)][3:5], 16)}, {int(self.pastel_colors[index % len(self.pastel_colors)][5:7], 16)}, 0.4)",
+            )
+        )
+
         fig.update_layout(
             title=f"📊 Volume {metric_col} nel tempo",
             xaxis_title=date_col,
             yaxis_title=metric_col,
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
             height=350,
             margin=dict(l=40, r=20, t=50, b=40),
-            font=dict(color=self.theme['text'], size=11)
+            font=dict(color=self.theme["text"], size=11),
         )
         return fig
-    
+
     def create_pie_chart(self, index):
         """Grafico a torta"""
         col = random.choice(self.categorical_cols)
         value_counts = self.df[col].value_counts().head(6)
-        
-        fig = go.Figure(data=[go.Pie(
-            labels=value_counts.index,
-            values=value_counts.values,
-            hole=0.3,
-            marker_colors=self.pastel_colors[:len(value_counts)],
-            textinfo='label+percent',
-            textposition='auto',
-            pull=[0.05] * len(value_counts)
-        )])
-        
+
+        fig = go.Figure(
+            data=[
+                go.Pie(
+                    labels=value_counts.index,
+                    values=value_counts.values,
+                    hole=0.3,
+                    marker_colors=self.pastel_colors[: len(value_counts)],
+                    textinfo="label+percent",
+                    textposition="auto",
+                    pull=[0.05] * len(value_counts),
+                )
+            ]
+        )
+
         fig.update_layout(
             title=f"🥧 Composizione {col}",
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
             height=350,
             margin=dict(l=20, r=20, t=50, b=20),
-            font=dict(color=self.theme['text'], size=11)
+            font=dict(color=self.theme["text"], size=11),
         )
         return fig
-    
+
     def create_dashboard_html(self):
         """Genera dashboard HTML completa con filtri e layout professionale"""
-        
+
         # Genera KPI cards (6 KPI dinamici)
         kpi_html = self.generate_kpi_cards_advanced()
-        
+
         # Genera filtri HTML
         filters_html = self.generate_filters_html()
-        
+
         # Genera grafici
         charts_html = ""
         chart_functions = {
-            'line': self.create_line_chart,
-            'bar': self.create_bar_chart,
-            'scatter': self.create_scatter_chart,
-            'bubble': self.create_bubble_chart,
-            'heatmap': self.create_heatmap_chart,
-            'histogram': self.create_histogram_chart,
-            'boxplot': self.create_boxplot_chart,
-            'treemap': self.create_treemap_chart,
-            'radar': self.create_radar_chart,
-            'violin': self.create_violin_chart,
-            'area': self.create_area_chart,
-            'pie': self.create_pie_chart
+            "line": self.create_line_chart,
+            "bar": self.create_bar_chart,
+            "scatter": self.create_scatter_chart,
+            "bubble": self.create_bubble_chart,
+            "heatmap": self.create_heatmap_chart,
+            "histogram": self.create_histogram_chart,
+            "boxplot": self.create_boxplot_chart,
+            "treemap": self.create_treemap_chart,
+            "radar": self.create_radar_chart,
+            "violin": self.create_violin_chart,
+            "area": self.create_area_chart,
+            "pie": self.create_pie_chart,
         }
-        
+
         for idx, chart_type in enumerate(self.chart_types):
             try:
                 if chart_type in chart_functions:
@@ -503,10 +745,10 @@ class DashboardGenerator:
                     """
             except Exception as e:
                 charts_html += f"<div class='alert-warning'>Errore grafico {chart_type}: {str(e)}</div>"
-        
+
         # Layout CSS per griglia dinamica
         grid_template = self.get_grid_template()
-        
+
         # HTML completo
         html_content = f"""
         <!DOCTYPE html>
@@ -931,13 +1173,13 @@ class DashboardGenerator:
         </body>
         </html>
         """
-        
+
         return html_content
-    
+
     def get_grid_template(self):
         """Restituisce il template CSS della griglia in base al numero di grafici"""
         n_charts = len(self.chart_types)
-        
+
         if n_charts <= 2:
             return "grid-template-columns: 1fr;"
         elif n_charts <= 4:
@@ -946,43 +1188,43 @@ class DashboardGenerator:
             return "grid-template-columns: repeat(3, 1fr);"
         else:
             return "grid-template-columns: repeat(4, 1fr);"
-    
+
     def get_chart_icon(self, chart_type):
         """Restituisce l'icona per il tipo di grafico"""
         icons = {
-            'line': '📈',
-            'bar': '📊',
-            'scatter': '🔍',
-            'bubble': '🫧',
-            'heatmap': '🔥',
-            'histogram': '📉',
-            'boxplot': '📦',
-            'treemap': '🗂️',
-            'radar': '🔄',
-            'violin': '🎻',
-            'area': '📊',
-            'pie': '🥧'
+            "line": "📈",
+            "bar": "📊",
+            "scatter": "🔍",
+            "bubble": "🫧",
+            "heatmap": "🔥",
+            "histogram": "📉",
+            "boxplot": "📦",
+            "treemap": "🗂️",
+            "radar": "🔄",
+            "violin": "🎻",
+            "area": "📊",
+            "pie": "🥧",
         }
-        return icons.get(chart_type, '📊')
-    
+        return icons.get(chart_type, "📊")
+
     def generate_kpi_cards_advanced(self):
         """Genera 6 KPI cards dinamici"""
         kpi_html = ""
-        
+
         kpis = []
-        
+
         # 1. Totale (se ci sono metriche numeriche)
         if self.numeric_cols:
             col = self.numeric_cols[0]
             total = self.df[col].sum()
-            kpis.append(('💰 Totale', f"{total:,.0f}", col))
-        
+            kpis.append(("💰 Totale", f"{total:,.0f}", col))
+
         # 2. Media
         if self.numeric_cols:
             col = self.numeric_cols[0]
             media = self.df[col].mean()
-            kpis.append(('📊 Media', f"{media:,.2f}", col))
-        
+            kpis.append(("📊 Media", f"{media:,.2f}", col))
+
         # 3. Tasso di crescita (se ci sono date)
         if self.datetime_cols and self.numeric_cols:
             try:
@@ -993,32 +1235,34 @@ class DashboardGenerator:
                 if first_val != 0:
                     growth = ((last_val - first_val) / first_val) * 100
                     trend = "▲" if growth > 0 else "▼"
-                    kpis.append((f'📈 Crescita', f"{trend} {abs(growth):.1f}%", "vs periodo"))
+                    kpis.append(
+                        (f"📈 Crescita", f"{trend} {abs(growth):.1f}%", "vs periodo")
+                    )
             except:
                 pass
-        
+
         # 4. Massimo
         if self.numeric_cols:
             col = self.numeric_cols[0]
             max_val = self.df[col].max()
-            kpis.append(('🏔️ Massimo', f"{max_val:,.0f}", col))
-        
+            kpis.append(("🏔️ Massimo", f"{max_val:,.0f}", col))
+
         # 5. Minimo
         if self.numeric_cols:
             col = self.numeric_cols[0]
             min_val = self.df[col].min()
-            kpis.append(('⛰️ Minimo', f"{min_val:,.0f}", col))
-        
+            kpis.append(("⛰️ Minimo", f"{min_val:,.0f}", col))
+
         # 6. Conteggio univoco (categorie)
         if self.categorical_cols:
             col = self.categorical_cols[0]
             unique_count = self.df[col].nunique()
-            kpis.append((f'🔢 {col[:8]}', f"{unique_count:,}", "valori unici"))
-        
+            kpis.append((f"🔢 {col[:8]}", f"{unique_count:,}", "valori unici"))
+
         # Assicura almeno 6 KPI
         while len(kpis) < 6:
-            kpis.append(('📌 Dato', '—', ''))
-        
+            kpis.append(("📌 Dato", "—", ""))
+
         for label, value, subtitle in kpis[:6]:
             kpi_html += f"""
             <div class="kpi-card">
@@ -1027,16 +1271,16 @@ class DashboardGenerator:
                 <div class="kpi-trend">{subtitle}</div>
             </div>
             """
-        
+
         return kpi_html
-    
+
     def generate_filters_html(self):
         """Genera la sidebar con i filtri interattivi"""
         filters_html = """
         <div class="sidebar-section">
             <div class="sidebar-title"><i class="fas fa-filter"></i> FILTRI</div>
         """
-        
+
         # Filtro temporale
         if self.datetime_cols:
             filters_html += f"""
@@ -1050,7 +1294,7 @@ class DashboardGenerator:
                 </select>
             </div>
             """
-        
+
         # Filtro per categoria principale
         if self.categorical_cols:
             col = self.categorical_cols[0]
@@ -1067,7 +1311,7 @@ class DashboardGenerator:
                 </select>
             </div>
             """
-        
+
         # Filtro metriche multiple
         if len(self.numeric_cols) > 1:
             filters_html += """
@@ -1085,7 +1329,7 @@ class DashboardGenerator:
                 </div>
             </div>
             """
-        
+
         # Ricerca testuale
         if self.categorical_cols:
             filters_html += """
@@ -1094,6 +1338,6 @@ class DashboardGenerator:
                 <input type="text" id="search_filter" placeholder="Cerca...">
             </div>
             """
-        
+
         filters_html += "</div>"
         return filters_html
