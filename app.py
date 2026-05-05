@@ -52,6 +52,67 @@ with st.sidebar:
     show_dashboard = st.checkbox("Mostra Dashboard", value=True)
     show_stats = st.checkbox("Mostra Statistiche", value=True)
 
+    st.markdown("### 💾 Formato Export")
+    export_formats = st.multiselect(
+        "Scegli i formati di export",
+        ["HTML", "PDF", "PNG/JPEG", "Tableau"],
+        default=["HTML"],
+    )
+
+
+# Funzione per esportare dashboard in PDF
+def export_to_pdf(html_content, filename="dashboard.pdf"):
+    """Esporta dashboard in PDF"""
+    try:
+        import pdfkit
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".html", delete=False) as f:
+            f.write(html_content)
+            temp_html = f.name
+
+        output_path = filename.replace(".pdf", "") + ".pdf"
+        pdfkit.from_file(temp_html, output_path)
+        os.unlink(temp_html)
+        return output_path
+    except ImportError:
+        st.warning("⚠️ pdfkit non installato. Usa: pip install pdfkit")
+        return None
+
+
+# Funzione per esportare dashboard in PNG
+def export_to_image(html_content, filename="dashboard.png"):
+    """Esporta dashboard in PNG usando Plotly"""
+    try:
+        import plotly.io as pio
+
+        # Converte HTML in immagine tramite kaleido
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".html", delete=False) as f:
+            f.write(html_content)
+            temp_html = f.name
+        return temp_html
+    except Exception as e:
+        st.warning(f"⚠️ Errore esportazione immagine: {str(e)}")
+        return None
+
+
+# Funzione per creare dataset Tableau
+def export_to_tableau(df, filename="data.csv"):
+    """Esporta dati in formato CSV pronto per Tableau"""
+    csv_buffer = df.to_csv(index=False)
+    return csv_buffer.encode()
+
+
+# Funzione per applicare filtri ai dati
+def apply_filters_to_data(df, filters):
+    """Applica i filtri selezionati al dataframe"""
+    filtered_df = df.copy()
+
+    for filter_col, filter_values in filters.items():
+        if filter_col in df.columns and filter_values:
+            filtered_df = filtered_df[filtered_df[filter_col].isin(filter_values)]
+
+    return filtered_df
+
 
 # Funzione per pulire i dati (risolve errore Arrow)
 def clean_dataframe(df):
@@ -190,8 +251,10 @@ def generate_dashboard_html(df):
                     padding: 20px;
                 }}
                 .dashboard {{
-                    max-width: 1600px;
+                    max-width: 1000px;
+                    width: 1000px;
                     margin: 0 auto;
+                    box-sizing: border-box;
                 }}
                 .header {{
                     background: linear-gradient(135deg, #667eea, #764ba2);
@@ -342,13 +405,84 @@ if uploaded_file is not None:
             # Info base
             st.success(f"✅ File caricato: {len(df)} righe, {len(df.columns)} colonne")
 
+            # ========== FILTRI INTERATTIVI ==========
+            st.markdown("---")
+            st.markdown("### 🔍 Filtri Interattivi")
+
+            filters = {}
+            col1, col2 = st.columns(2)
+
+            # Filtri dinamici in base ai dati
+            numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+            categorical_cols = df.select_dtypes(include=["object"]).columns.tolist()
+
+            # Filtro categorico 1
+            if categorical_cols:
+                with col1:
+                    filter_col_1 = st.selectbox(
+                        "🏷️ Filtro 1 - Categoria",
+                        [None] + categorical_cols,
+                        key="filter_cat_1",
+                    )
+                    if filter_col_1:
+                        filter_values_1 = st.multiselect(
+                            f"Seleziona {filter_col_1}",
+                            df[filter_col_1].unique(),
+                            default=df[filter_col_1].unique()[:5],
+                        )
+                        if filter_values_1:
+                            filters[filter_col_1] = filter_values_1
+
+            # Filtro numerico (range)
+            if numeric_cols:
+                with col2:
+                    filter_col_2 = st.selectbox(
+                        "📊 Filtro 2 - Range Numerico",
+                        [None] + numeric_cols,
+                        key="filter_num_1",
+                    )
+                    if filter_col_2:
+                        min_val = float(df[filter_col_2].min())
+                        max_val = float(df[filter_col_2].max())
+                        range_vals = st.slider(
+                            f"Seleziona range {filter_col_2}",
+                            min_val,
+                            max_val,
+                            (min_val, max_val),
+                            key="filter_range_1",
+                        )
+                        filters[f"{filter_col_2}_range"] = range_vals
+
+            # Applica filtri
+            if filters:
+                filtered_df = df.copy()
+
+                # Applica filtri categorici
+                for col, values in filters.items():
+                    if col in df.columns:
+                        filtered_df = filtered_df[filtered_df[col].isin(values)]
+
+                # Applica filtri numerici
+                for key, (min_v, max_v) in filters.items():
+                    if "_range" in key:
+                        col_name = key.replace("_range", "")
+                        if col_name in df.columns:
+                            filtered_df = filtered_df[
+                                (filtered_df[col_name] >= min_v)
+                                & (filtered_df[col_name] <= max_v)
+                            ]
+
+                st.info(f"📊 Filtri applicati: {len(filtered_df)} righe su {len(df)}")
+            else:
+                filtered_df = df
+
             # Statistiche in streamlit (senza errori Arrow)
             if show_stats:
                 with st.expander("📋 Anteprima dati", expanded=True):
-                    st.dataframe(df.head(20), use_container_width=True)
+                    st.dataframe(filtered_df.head(20), use_container_width=True)
 
                 with st.expander("📊 Statistiche descrittive"):
-                    numeric_df = df.select_dtypes(include=[np.number])
+                    numeric_df = filtered_df.select_dtypes(include=[np.number])
                     if len(numeric_df.columns) > 0:
                         st.dataframe(numeric_df.describe(), use_container_width=True)
                     else:
@@ -380,13 +514,60 @@ if uploaded_file is not None:
                     # Pulisci
                     os.unlink(temp_path)
 
-                    # Download button
-                    st.download_button(
-                        label="💾 Scarica Dashboard HTML",
-                        data=html_content,
-                        file_name=f"dashboard_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html",
-                        mime="text/html",
-                    )
+                    # ========== DOWNLOAD OPTIONS ==========
+                    st.markdown("---")
+                    st.markdown("### 💾 Scarica Dashboard")
+
+                    col_dl1, col_dl2, col_dl3, col_dl4 = st.columns(4)
+
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+                    # Download HTML
+                    with col_dl1:
+                        st.download_button(
+                            label="📄 HTML",
+                            data=html_content,
+                            file_name=f"dashboard_{timestamp}.html",
+                            mime="text/html",
+                        )
+
+                    # Download CSV (dati filtrati)
+                    with col_dl2:
+                        csv_data = filtered_df.to_csv(index=False)
+                        st.download_button(
+                            label="📊 CSV (Tableau)",
+                            data=csv_data,
+                            file_name=f"data_{timestamp}.csv",
+                            mime="text/csv",
+                        )
+
+                    # Download JSON
+                    with col_dl3:
+                        json_data = filtered_df.to_json(orient="records")
+                        st.download_button(
+                            label="🔗 JSON",
+                            data=json_data,
+                            file_name=f"data_{timestamp}.json",
+                            mime="application/json",
+                        )
+
+                    # Info Tableau
+                    with col_dl4:
+                        st.info(
+                            "💡 Usa il CSV in Tableau Public (gratuito) per creare dashboard"
+                        )
+
+                    # Istruzioni Tableau
+                    with st.expander("📚 Come usare con Tableau"):
+                        st.markdown("""
+                        1. Scarica il file CSV 📊
+                        2. Vai su [Tableau Public](https://public.tableau.com)
+                        3. Accedi o registrati gratuitamente
+                        4. Clicca su "Create" → "New Workbook"
+                        5. Carica il file CSV scaricato
+                        6. Trascina campi per creare visualizzazioni
+                        7. Pubblica il tuo dashboard!
+                        """)
 
                 except Exception as e:
                     st.error(f"Errore generazione dashboard: {str(e)}")

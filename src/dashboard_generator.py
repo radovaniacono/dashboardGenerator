@@ -556,7 +556,7 @@ class DashboardGenerator:
                 parents=[""] * len(aggregated),
                 values=aggregated.values,
                 marker_colors=aggregated.values,
-                marker_colorscale="Pastel",
+                marker_colorscale="pinkyl",
                 textinfo="label+value",
                 hovertemplate="%{label}: %{value:,.0f}<extra></extra>",
             )
