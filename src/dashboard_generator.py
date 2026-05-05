@@ -316,6 +316,8 @@ class DashboardGenerator:
     def get_chart_icon(self, chart_type: str) -> str:
         """Ritorna l'icona/emoji per un tipo di grafico"""
         return self.chart_icons.get(chart_type, "📊")
+
+    def create_line_chart(self, index):
         """Grafico a linee per serie temporali"""
         date_col = self.datetime_cols[0]
         metric_col = random.choice(self.numeric_cols)
