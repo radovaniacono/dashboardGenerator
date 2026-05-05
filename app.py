@@ -1,6 +1,6 @@
 """
 AI Data Engineer Dashboard Generator
-Versione Definitiva - Senza Errori
+Versione 2.0 - Sistema Intelligente di Generazione Dashboard
 """
 
 import streamlit as st
@@ -13,6 +13,14 @@ from datetime import datetime
 import plotly.express as px
 import plotly.graph_objects as go
 import base64
+import sys
+from plotly.utils import PlotlyJSONEncoder
+import json
+
+# Importa le classi custom
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
+from ml_analyzer import MLAnalyzer
+from dashboard_generator import DashboardGenerator
 
 # Configurazione pagina
 st.set_page_config(page_title="AI Dashboard Generator", page_icon="🤖", layout="wide")
@@ -93,331 +101,236 @@ def load_data(uploaded_file):
         return None
 
 
-# Funzione per generare dashboard HTML
+# Funzione per generare dashboard HTML con DashboardGenerator intelligente
 def generate_dashboard_html(df):
-    """Genera dashboard HTML con grafici"""
+    """Genera dashboard HTML intelligente con DashboardGenerator"""
 
-    # Identifica tipi di colonne
-    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-    categorical_cols = df.select_dtypes(include=["object"]).columns.tolist()
+    try:
+        # Crea analizzatore ML
+        ml_analyzer = MLAnalyzer(df)
 
-    # Colori pastello
-    colors = [
-        "#A8E6CF",
-        "#FFD3B6",
-        "#FFAAA5",
-        "#C7CEEA",
-        "#B5EAD7",
-        "#FFDAC1",
-        "#D4F1F9",
-        "#E8D0F0",
-    ]
+        # Crea generatore dashboard
+        dashboard_gen = DashboardGenerator(df, ml_analyzer, insights=None)
 
-    grafici_html = ""
-    chart_counter = 0
-
-    # Grafico 1: Istogramma (se ci sono dati numerici)
-    if numeric_cols:
-        col = numeric_cols[0]
-        fig = go.Figure()
-        fig.add_trace(
-            go.Histogram(
-                x=df[col].dropna(),
-                nbinsx=20,
-                marker_color=colors[0],
-                marker_line_color="white",
-                marker_line_width=1,
-                opacity=0.85,
-            )
-        )
-        fig.update_layout(
-            title=f"📊 Distribuzione {col}",
-            xaxis_title=col,
-            yaxis_title="Frequenza",
-            plot_bgcolor="rgba(0,0,0,0)",
-            paper_bgcolor="rgba(0,0,0,0)",
-            height=350,
-            margin=dict(l=40, r=20, t=50, b=40),
-        )
-        grafici_html += f"""
-        <div class="chart-card">
-            <div id="chart_{chart_counter}" style="width:100%; height:350px;"></div>
-        </div>
-        <script>
-            var fig_{chart_counter} = {fig.to_json()};
-            Plotly.newPlot('chart_{chart_counter}', fig_{chart_counter}.data, fig_{chart_counter}.layout);
-        </script>
-        """
-        chart_counter += 1
-
-    # Grafico 2: Bar chart (se ci sono dati categorici)
-    if categorical_cols:
-        col = categorical_cols[0]
-        counts = df[col].value_counts().head(10)
-        fig = go.Figure()
-        fig.add_trace(
-            go.Bar(
-                x=counts.index.tolist(),
-                y=counts.values.tolist(),
-                marker_color=colors[1],
-                text=counts.values.tolist(),
-                textposition="outside",
-            )
-        )
-        fig.update_layout(
-            title=f"📈 Top 10 {col}",
-            xaxis_title=col,
-            yaxis_title="Conteggio",
-            plot_bgcolor="rgba(0,0,0,0)",
-            paper_bgcolor="rgba(0,0,0,0)",
-            height=350,
-            margin=dict(l=40, r=20, t=50, b=40),
-            xaxis_tickangle=-45 if len(counts) > 5 else 0,
-        )
-        grafici_html += f"""
-        <div class="chart-card">
-            <div id="chart_{chart_counter}" style="width:100%; height:350px;"></div>
-        </div>
-        <script>
-            var fig_{chart_counter} = {fig.to_json()};
-            Plotly.newPlot('chart_{chart_counter}', fig_{chart_counter}.data, fig_{chart_counter}.layout);
-        </script>
-        """
-        chart_counter += 1
-
-    # Grafico 3: Scatter plot (se ci sono almeno 2 metriche)
-    if len(numeric_cols) >= 2:
-        fig = go.Figure()
-        fig.add_trace(
-            go.Scatter(
-                x=df[numeric_cols[0]],
-                y=df[numeric_cols[1]],
-                mode="markers",
-                marker=dict(
-                    size=8,
-                    color=colors[2],
-                    opacity=0.6,
-                    line=dict(width=1, color="white"),
-                ),
-            )
-        )
-        fig.update_layout(
-            title=f"🔍 {numeric_cols[0]} vs {numeric_cols[1]}",
-            xaxis_title=numeric_cols[0],
-            yaxis_title=numeric_cols[1],
-            plot_bgcolor="rgba(0,0,0,0)",
-            paper_bgcolor="rgba(0,0,0,0)",
-            height=350,
-            margin=dict(l=40, r=20, t=50, b=40),
-        )
-        grafici_html += f"""
-        <div class="chart-card">
-            <div id="chart_{chart_counter}" style="width:100%; height:350px;"></div>
-        </div>
-        <script>
-            var fig_{chart_counter} = {fig.to_json()};
-            Plotly.newPlot('chart_{chart_counter}', fig_{chart_counter}.data, fig_{chart_counter}.layout);
-        </script>
-        """
-        chart_counter += 1
-
-    # Grafico 4: Box plot
-    if numeric_cols:
-        fig = go.Figure()
-        fig.add_trace(
-            go.Box(
-                y=df[numeric_cols[0]].dropna(),
-                name=numeric_cols[0],
-                marker_color=colors[3],
-                line_color=colors[3],
-                boxmean="sd",
-            )
-        )
-        fig.update_layout(
-            title=f"📦 Distribuzione {numeric_cols[0]}",
-            yaxis_title=numeric_cols[0],
-            plot_bgcolor="rgba(0,0,0,0)",
-            paper_bgcolor="rgba(0,0,0,0)",
-            height=350,
-            margin=dict(l=40, r=20, t=50, b=40),
-        )
-        grafici_html += f"""
-        <div class="chart-card">
-            <div id="chart_{chart_counter}" style="width:100%; height:350px;"></div>
-        </div>
-        <script>
-            var fig_{chart_counter} = {fig.to_json()};
-            Plotly.newPlot('chart_{chart_counter}', fig_{chart_counter}.data, fig_{chart_counter}.layout);
-        </script>
-        """
-        chart_counter += 1
-
-    # Heatmap correlazioni (se abbastanza colonne numeriche)
-    if len(numeric_cols) >= 3:
-        corr = df[numeric_cols].corr()
-        fig = go.Figure(
-            data=go.Heatmap(
-                z=corr.values,
-                x=corr.columns.tolist(),
-                y=corr.columns.tolist(),
-                colorscale="pinkyl",
-                text=corr.values.round(2),
-                texttemplate="%{text}",
-                textfont={"size": 10},
-            )
-        )
-        fig.update_layout(
-            title="🔗 Matrice di Correlazione",
-            plot_bgcolor="rgba(0,0,0,0)",
-            paper_bgcolor="rgba(0,0,0,0)",
-            height=400,
-            margin=dict(l=80, r=20, t=50, b=80),
-            xaxis_tickangle=45,
-        )
-        grafici_html += f"""
-        <div class="chart-card">
-            <div id="chart_{chart_counter}" style="width:100%; height:400px;"></div>
-        </div>
-        <script>
-            var fig_{chart_counter} = {fig.to_json()};
-            Plotly.newPlot('chart_{chart_counter}', fig_{chart_counter}.data, fig_{chart_counter}.layout);
-        </script>
-        """
-        chart_counter += 1
-
-    # Genera KPI cards
-    kpi_html = ""
-    for i, col in enumerate(numeric_cols[:6]):
-        media = df[col].mean()
-        if pd.notna(media):
+        # Genera KPI cards HTML
+        kpi_html = ""
+        for kpi in dashboard_gen.kpis:
             kpi_html += f"""
             <div class="kpi-card">
-                <div class="kpi-label">{col.upper()}</div>
-                <div class="kpi-value">{media:,.2f}</div>
-                <div class="kpi-trend">Media</div>
+                <div class="kpi-label">{kpi['icon']} {kpi['title']}</div>
+                <div class="kpi-value">{kpi['value']}</div>
             </div>
             """
 
-    # Template HTML completo
-    html_template = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Dashboard Interattiva</title>
-        <script src="https://cdn.plot.ly/plotly-3.0.1.min.js"></script>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-            body {{
-                background: #F9FBF4;
-                font-family: 'Segoe UI', Arial, sans-serif;
-                padding: 20px;
-            }}
-            .dashboard {{
-                max-width: 1400px;
-                margin: 0 auto;
-            }}
-            .header {{
-                background: linear-gradient(135deg, #667eea, #764ba2);
-                border-radius: 20px;
-                padding: 30px;
-                color: white;
-                text-align: center;
-                margin-bottom: 25px;
-            }}
-            .header h1 {{
-                font-size: 1.8rem;
-                margin-bottom: 10px;
-            }}
-            .header p {{
-                opacity: 0.9;
-            }}
-            .kpi-row {{
-                display: grid;
-                grid-template-columns: repeat(4, 1fr);
-                gap: 15px;
-                margin-bottom: 25px;
-            }}
-            .kpi-card {{
-                background: white;
-                border-radius: 15px;
-                padding: 20px;
-                text-align: center;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-                border-top: 3px solid #667eea;
-            }}
-            .kpi-label {{
-                font-size: 0.7rem;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-                color: #666;
-                margin-bottom: 8px;
-            }}
-            .kpi-value {{
-                font-size: 1.8rem;
-                font-weight: bold;
-                color: #333;
-            }}
-            .kpi-trend {{
-                font-size: 0.7rem;
-                color: #999;
-                margin-top: 5px;
-            }}
-            .charts-grid {{
-                display: grid;
-                grid-template-columns: repeat(2, 1fr);
-                gap: 20px;
-            }}
-            .chart-card {{
-                background: white;
-                border-radius: 15px;
-                padding: 15px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-                transition: transform 0.2s;
-            }}
-            .chart-card:hover {{
-                transform: translateY(-3px);
-                box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            }}
-            .footer {{
-                text-align: center;
-                margin-top: 30px;
-                padding: 20px;
-                color: #999;
-                font-size: 0.8rem;
-            }}
-            @media (max-width: 768px) {{
-                .kpi-row {{ grid-template-columns: repeat(2, 1fr); }}
-                .charts-grid {{ grid-template-columns: 1fr; }}
-                .header h1 {{ font-size: 1.2rem; }}
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="dashboard">
-            <div class="header">
-                <h1>📊 Pastel Interactive Dashboard</h1>
-                <p>Dashboard generata automaticamente dai tuoi dati</p>
-            </div>
-            
-            <div class="kpi-row">
-                {kpi_html}
-            </div>
-            
-            <div class="charts-grid">
-                {grafici_html}
-            </div>
-            
-            <div class="footer">
-                <p>🤖 Generato da AI Data Engineer | {datetime.now().strftime('%d/%m/%Y %H:%M')}</p>
-            </div>
-        </div>
-    </body>
-    </html>
-    """
+        # Genera grafici dinamicamente
+        grafici_html = ""
+        chart_functions = {
+            "line": dashboard_gen.create_line_chart,
+            "bar": dashboard_gen.create_bar_chart,
+            "scatter": dashboard_gen.create_scatter_chart,
+            "bubble": dashboard_gen.create_bubble_chart,
+            "heatmap": dashboard_gen.create_heatmap_chart,
+            "histogram": dashboard_gen.create_histogram_chart,
+            "boxplot": dashboard_gen.create_boxplot_chart,
+            "treemap": dashboard_gen.create_treemap_chart,
+            "radar": dashboard_gen.create_radar_chart,
+            "violin": dashboard_gen.create_violin_chart,
+            "area": dashboard_gen.create_area_chart,
+            "pie": dashboard_gen.create_pie_chart,
+        }
 
-    return html_template
+        chart_counter = 0
+        for idx, chart_type in enumerate(dashboard_gen.chart_types):
+            try:
+                if chart_type in chart_functions:
+                    fig = chart_functions[chart_type](idx)
+                    fig_json = json.dumps(fig.to_dict(), cls=PlotlyJSONEncoder)
+                    icon = dashboard_gen.get_chart_icon(chart_type)
+
+                    grafici_html += f"""
+                    <div class="chart-card">
+                        <div id="chart_{chart_counter}" style="width:100%; height:350px;"></div>
+                    </div>
+                    <script>
+                        (function() {{
+                            var fig_{chart_counter} = {fig_json};
+                            Plotly.newPlot('chart_{chart_counter}', fig_{chart_counter}.data, fig_{chart_counter}.layout, {{responsive: true}});
+                        }})();
+                    </script>
+                    """
+                    chart_counter += 1
+            except Exception as e:
+                st.warning(f"⚠️ Errore nel grafico {chart_type}: {str(e)}")
+                continue
+
+        # Genera filtri HTML
+        filters_html = ""
+        if dashboard_gen.suggested_filters:
+            filters_html = '<div class="filters-section"><h3>🔍 Filtri Suggeriti</h3><div class="filters-row">'
+            for filt in dashboard_gen.suggested_filters:
+                filters_html += (
+                    f'<div class="filter-chip">{filt["icon"]} {filt["column"]}</div>'
+                )
+            filters_html += "</div></div>"
+
+        # Template HTML completo
+        html_template = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Dashboard Interattiva - AI Generated</title>
+            <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+                body {{
+                    background: #F9FBF4;
+                    font-family: 'Segoe UI', Arial, sans-serif;
+                    padding: 20px;
+                }}
+                .dashboard {{
+                    max-width: 1600px;
+                    margin: 0 auto;
+                }}
+                .header {{
+                    background: linear-gradient(135deg, #667eea, #764ba2);
+                    border-radius: 20px;
+                    padding: 30px;
+                    color: white;
+                    text-align: center;
+                    margin-bottom: 25px;
+                }}
+                .header h1 {{
+                    font-size: 2rem;
+                    margin-bottom: 10px;
+                }}
+                .header p {{
+                    opacity: 0.9;
+                    font-size: 1.1rem;
+                }}
+                .kpi-row {{
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                    gap: 15px;
+                    margin-bottom: 25px;
+                }}
+                .kpi-card {{
+                    background: white;
+                    border-radius: 15px;
+                    padding: 20px;
+                    text-align: center;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+                    border-left: 4px solid #667eea;
+                    transition: transform 0.2s;
+                }}
+                .kpi-card:hover {{
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+                }}
+                .kpi-label {{
+                    font-size: 0.85rem;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                    color: #666;
+                    margin-bottom: 8px;
+                }}
+                .kpi-value {{
+                    font-size: 1.6rem;
+                    font-weight: bold;
+                    color: #333;
+                }}
+                .filters-section {{
+                    background: white;
+                    border-radius: 15px;
+                    padding: 20px;
+                    margin-bottom: 25px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+                }}
+                .filters-section h3 {{
+                    margin-bottom: 15px;
+                    color: #333;
+                }}
+                .filters-row {{
+                    display: flex;
+                    gap: 10px;
+                    flex-wrap: wrap;
+                }}
+                .filter-chip {{
+                    background: #A8E6CF;
+                    padding: 8px 12px;
+                    border-radius: 20px;
+                    font-size: 0.9rem;
+                    color: #333;
+                }}
+                .charts-grid {{
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+                    gap: 20px;
+                    margin-bottom: 30px;
+                }}
+                .chart-card {{
+                    background: white;
+                    border-radius: 15px;
+                    padding: 15px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+                    transition: transform 0.2s;
+                }}
+                .chart-card:hover {{
+                    transform: translateY(-3px);
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+                }}
+                .footer {{
+                    text-align: center;
+                    margin-top: 30px;
+                    padding: 20px;
+                    color: #999;
+                    font-size: 0.8rem;
+                }}
+                .chart-info {{
+                    font-size: 0.85rem;
+                    color: #666;
+                    margin-bottom: 10px;
+                    font-weight: 500;
+                }}
+                @media (max-width: 768px) {{
+                    .kpi-row {{ grid-template-columns: repeat(2, 1fr); }}
+                    .charts-grid {{ grid-template-columns: 1fr; }}
+                    .header h1 {{ font-size: 1.5rem; }}
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="dashboard">
+                <div class="header">
+                    <h1>📊 Dashboard Interattiva Intelligente</h1>
+                    <p>✨ Generata automaticamente con AI Data Engineering</p>
+                </div>
+                
+                <div class="kpi-row">
+                    {kpi_html}
+                </div>
+                
+                {filters_html}
+                
+                <div class="charts-grid">
+                    {grafici_html}
+                </div>
+                
+                <div class="footer">
+                    <p>🤖 Generato da AI Dashboard Generator v2.0 | Layout: {dashboard_gen.layout_type} | Grafici: {len(dashboard_gen.chart_types)} | {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        return html_template
+
+    except Exception as e:
+        # Fallback se qualcosa va male
+        st.error(f"Errore nella generazione intelligente: {str(e)}")
+        return f"<h1>Errore: {str(e)}</h1>"
 
 
 # Main
