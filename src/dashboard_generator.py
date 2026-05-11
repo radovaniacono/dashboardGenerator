@@ -78,68 +78,95 @@ class DashboardGenerator:
         self.layout_type = self.randomize_layout_structure()
 
     def select_charts_advanced(self):
-        """Seleziona automaticamente fino a 8 grafici in base ai dati disponibili"""
+        """Seleziona intelligentemente fino a 8 grafici basati sui dati disponibili"""
         charts = []
+        profile = self.ml_analyzer.analyze_data_profile()
 
-        # 1. Time series (se ci sono dati temporali)
+        # 1. Time series (se ci sono dati temporali + metriche numeriche)
         if self.datetime_cols and self.numeric_cols:
             charts.append("line")
 
-        # 2. Bar chart per categorie (se ci sono dati categorici)
-        if self.categorical_cols:
-            charts.append("bar")
-
-        # 3. Scatter plot (se ci sono almeno 2 metriche numeriche)
-        if len(self.numeric_cols) >= 2:
-            charts.append("scatter")
-
-        # 4. Bubble chart (se ci sono almeno 3 metriche numeriche)
-        if len(self.numeric_cols) >= 3:
-            charts.append("bubble")
-
-        # 5. Heatmap correlazioni (se ci sono almeno 3 metriche numeriche)
-        if len(self.numeric_cols) >= 3:
-            charts.append("heatmap")
-
-        # 6. Istogramma distribuzione
+        # 2. Distribuzione (sempre utile)
         if self.numeric_cols:
             charts.append("histogram")
 
-        # 7. Box plot per outlier
+        # 3. Bar chart per categorie (se cardinalità bassa-media)
+        if self.categorical_cols:
+            card = profile.get("cardinality", {})
+            for col in self.categorical_cols:
+                col_card = card.get(col, {})
+                if col_card.get("is_low_cardinality"):
+                    charts.append("bar")
+                    break
+
+        # 4. Scatter plot (se almeno 2 metriche numeriche)
+        if len(self.numeric_cols) >= 2:
+            charts.append("scatter")
+
+        # 5. Heatmap correlazioni (se ci sono correlazioni forti)
+        if len(self.numeric_cols) >= 3:
+            strong_corr = profile.get("strong_correlations", [])
+            if strong_corr or len(self.numeric_cols) >= 4:
+                charts.append("heatmap")
+
+        # 6. Bubble chart (se ci sono almeno 3 metriche + variabilità)
+        if len(self.numeric_cols) >= 3:
+            # Controlla la variabilità
+            high_var_count = sum(
+                1
+                for col in self.numeric_cols
+                if profile.get("numeric_stats", {}).get(col, {}).get("cv", 0) > 0.5
+            )
+            if high_var_count >= 2:
+                charts.append("bubble")
+
+        # 7. Box plot per outlier (se ci sono outlier rilevati)
         if self.numeric_cols:
-            charts.append("boxplot")
+            outliers = profile.get("outliers", {})
+            if any(v > 0 for v in outliers.values()):
+                charts.append("boxplot")
 
-        # 8. Treemap composizione
+        # 8. Treemap per composizione (se categorie + valori)
         if self.categorical_cols and self.numeric_cols:
-            charts.append("treemap")
+            card = profile.get("cardinality", {})
+            if card.get(self.categorical_cols[0], {}).get("is_low_cardinality"):
+                charts.append("treemap")
 
-        # 9. Radar chart (se abbastanza metriche)
+        # 9. Area chart (se dati temporali + trend)
+        if self.datetime_cols and self.numeric_cols:
+            try:
+                sorted_df = self.df.sort_values(self.datetime_cols[0])
+                if len(sorted_df) > 5:
+                    charts.append("area")
+            except:
+                pass
+
+        # 10. Pie chart (se categoria con poche opzioni)
+        if self.categorical_cols:
+            col = self.categorical_cols[0]
+            unique_count = self.df[col].nunique()
+            if 2 <= unique_count <= 8:
+                charts.append("pie")
+
+        # 11. Violin plot (distribuzione e densità)
+        if len(self.numeric_cols) >= 2 and len(self.df) > 30:
+            charts.append("violin")
+
+        # 12. Radar chart (metriche comparative)
         if len(self.numeric_cols) >= 4:
             charts.append("radar")
 
-        # 10. Violin plot (alternativa distribuzione)
-        if self.numeric_cols:
-            charts.append("violin")
-
-        # 11. Area chart (se dati temporali)
-        if self.datetime_cols and self.numeric_cols:
-            charts.append("area")
-
-        # 12. Pie chart (se poche categorie)
-        if self.categorical_cols and self.df[self.categorical_cols[0]].nunique() <= 8:
-            charts.append("pie")
-
-        # Seleziona massimo 8 grafici, assicurando varietà
+        # Seleziona massimo 8 grafici, assicurando varietà e rilevanza
         selected_charts = []
         chart_priority = [
-            "histogram",
-            "bar",
-            "line",
-            "scatter",
-            "heatmap",
-            "boxplot",
-            "treemap",
-            "bubble",
+            "histogram",  # Sempre utile
+            "bar",  # Se categorie basse
+            "line",  # Se temporali
+            "scatter",  # Se correlazioni
+            "heatmap",  # Se molte metriche
+            "boxplot",  # Se outlier
+            "treemap",  # Se composizione
+            "bubble",  # Se 3+ metriche
         ]
 
         for chart in chart_priority:
@@ -155,80 +182,151 @@ class DashboardGenerator:
         while len(selected_charts) < 4 and self.numeric_cols:
             selected_charts.append("histogram")
 
-        return selected_charts
+        return selected_charts[:8]
 
     def generate_dynamic_kpis(self) -> List[Dict]:
-        """Genera KPI dinamici basati sui dati disponibili (0 - infiniti)"""
+        """Genera KPI dinamici intelligenti basati sui dati (identifica i veri KPI)"""
         kpis = []
 
-        # KPI 1: Numero di record
+        # KPI 1: Numero totale di record
         kpis.append(
             {
                 "title": "Record Totali",
                 "value": f"{len(self.df):,.0f}",
                 "icon": "📊",
-                "trend": None,
+                "trend": "dati",
                 "color": "#A8E6CF",
             }
         )
 
-        # KPI 2-3: Metriche numeriche principali
-        if self.numeric_cols:
-            for i, col in enumerate(self.numeric_cols[:2]):
+        # KPI 2-3: Colonne monetarie (se disponibili)
+        if self.ml_analyzer.monetary_cols:
+            for i, col in enumerate(self.ml_analyzer.monetary_cols[:2]):
+                total_val = self.df[col].sum()
                 avg_val = self.df[col].mean()
+                trend_direction = "↑" if avg_val > total_val / 2 else "↓"
                 kpis.append(
                     {
-                        "title": f"Media {col}",
-                        "value": f"{avg_val:,.2f}",
-                        "icon": "📈",
-                        "trend": None,
+                        "title": f"💰 {col}",
+                        "value": f"€ {total_val:,.0f}",
+                        "icon": "💰",
+                        "trend": f"{trend_direction} Media: €{avg_val:,.0f}",
                         "color": self.pastel_colors[i % len(self.pastel_colors)],
                     }
                 )
 
-        # KPI 4: Categoria più frequente
-        if self.categorical_cols:
-            most_freq_col = self.categorical_cols[0]
-            most_freq_val = self.df[most_freq_col].value_counts().index[0]
+        # KPI 4: Metriche di volume/conteggio
+        count_cols = [
+            col
+            for col in self.numeric_cols
+            if "count" in col.lower() or "total" in col.lower()
+        ]
+        if count_cols:
+            col = count_cols[0]
+            total = self.df[col].sum()
+            avg = self.df[col].mean()
             kpis.append(
                 {
-                    "title": f"{most_freq_col} Top",
-                    "value": str(most_freq_val),
-                    "icon": "🏆",
-                    "trend": None,
+                    "title": f"📈 {col}",
+                    "value": f"{total:,.0f}",
+                    "icon": "📈",
+                    "trend": f"Media: {avg:,.0f}",
                     "color": "#FFD3B6",
                 }
             )
 
-        # KPI 5: Data range (se ci sono dati temporali)
-        if self.datetime_cols:
-            date_col = self.datetime_cols[0]
-            date_range = f"{self.df[date_col].min()} a {self.df[date_col].max()}"
+        # KPI 5: Categoria principale più frequente
+        if self.categorical_cols:
+            most_freq_col = self.categorical_cols[0]
+            top_cat = self.df[most_freq_col].value_counts()
+            if len(top_cat) > 0:
+                top_val = top_cat.index[0]
+                top_count = top_cat.values[0]
+                top_pct = (top_count / len(self.df)) * 100
+                kpis.append(
+                    {
+                        "title": f"🏆 Top {most_freq_col}",
+                        "value": f"{top_val}",
+                        "icon": "🏆",
+                        "trend": f"{top_pct:.1f}% del totale",
+                        "color": "#FFAAA5",
+                    }
+                )
+
+        # KPI 6: Percentuale/Tasso principale
+        if self.ml_analyzer.percentage_cols:
+            col = self.ml_analyzer.percentage_cols[0]
+            avg_pct = self.df[col].mean()
+            max_pct = self.df[col].max()
             kpis.append(
                 {
-                    "title": "Intervallo Tempo",
-                    "value": str(date_range),
-                    "icon": "📅",
-                    "trend": None,
+                    "title": f"📊 {col}",
+                    "value": f"{avg_pct:.1f}%",
+                    "icon": "📊",
+                    "trend": f"Max: {max_pct:.1f}%",
                     "color": "#C7CEEA",
                 }
             )
+        elif len(self.numeric_cols) >= 3:
+            # Se non ci sono percentuali esplicite, prendi una metrica numerica
+            col = self.numeric_cols[2]
+            val = self.df[col].mean()
+            kpis.append(
+                {
+                    "title": f"📈 Media {col}",
+                    "value": f"{val:,.2f}",
+                    "icon": "📈",
+                    "trend": f"Range: {self.df[col].min():.1f} - {self.df[col].max():.1f}",
+                    "color": "#B5EAD7",
+                }
+            )
 
-        # KPI 6: Completezza dati
+        # KPI 7: Qualità dati (completezza)
         completeness = (
             1 - (self.df.isnull().sum().sum() / (len(self.df) * len(self.df.columns)))
         ) * 100
+        completeness_status = (
+            "✅" if completeness >= 90 else "⚠️" if completeness >= 70 else "❌"
+        )
         kpis.append(
             {
-                "title": "Completezza",
+                "title": "Qualità Dati",
                 "value": f"{completeness:.1f}%",
-                "icon": "✅",
-                "trend": None,
-                "color": "#B5EAD7",
+                "icon": completeness_status,
+                "trend": "completezza",
+                "color": "#FDD0F2",
             }
         )
 
-        return kpis
+        # KPI 8: Range temporale (se disponibile)
+        if self.datetime_cols:
+            date_col = self.datetime_cols[0]
+            min_date = self.df[date_col].min()
+            max_date = self.df[date_col].max()
+            days_span = (max_date - min_date).days
+            kpis.append(
+                {
+                    "title": "📅 Periodo",
+                    "value": f"{days_span} giorni",
+                    "icon": "📅",
+                    "trend": f"{min_date.strftime('%d/%m/%Y')} - {max_date.strftime('%d/%m/%Y')}",
+                    "color": "#D4F1F9",
+                }
+            )
+
+        # Assicura almeno 6 KPI, massimo 8
+        while len(kpis) < 6:
+            kpis.append(
+                {
+                    "title": "📌 Dato",
+                    "value": "—",
+                    "icon": "📌",
+                    "trend": "n/a",
+                    "color": "#E8D0F0",
+                }
+            )
+
+        return kpis[:8]  # Massimo 8 KPI
 
     def suggest_intelligent_filters(self) -> List[Dict]:
         """Suggerisce fino a 2 filtri intelligenti basati sui dati"""
