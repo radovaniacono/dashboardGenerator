@@ -1,87 +1,95 @@
 """
-AI Data Engineer Dashboard Generator - Versione 3.0
-Sistema Intelligente di Generazione Dashboard con Analisi ML Avanzata
+AI Data Engineer Dashboard Generator - Versione 4.0
+Sistema Intelligente di Generazione Dashboard con Layout Responsivo, Dinamico e Accessibile
 """
 
 import streamlit as st
 import pandas as pd
 import numpy as np
 from pathlib import Path
-import tempfile
 import os
 from datetime import datetime
-import plotly.express as px
-import plotly.graph_objects as go
-import base64
 import sys
-from plotly.utils import PlotlyJSONEncoder
-import json
+import tempfile
 
-# Importa le classi custom
+# Importa moduli custom
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
+
 from ml_analyzer import MLAnalyzer
 from dashboard_generator import DashboardGenerator
+from responsive_layout import ResponsiveLayoutEngine, create_responsive_columns
+from layout_randomizer import (
+    LayoutRandomizer,
+    create_dynamic_kpi_grid,
+    create_dynamic_chart_grid,
+)
+from kpi_cards import (
+    KPICard,
+    render_kpi_grid,
+    create_kpi_from_metric,
+    render_kpi_summary,
+)
+from charts_intelligent import (
+    IntelligentChartBuilder,
+    get_chart_candidates,
+    render_intelligent_chart,
+)
+from tables_interactive import InteractiveTable, render_table_with_filters
+from filter_system import GlobalFilterManager, FilterBar
+from accessibility import AccessibilityManager, add_skip_link, ColorAccessibility
 
-# Configurazione pagina
+# ============================================================================
+# CONFIGURAZIONE PAGINA E TEMA
+# ============================================================================
+
 st.set_page_config(
-    page_title="AI Dashboard Generator v3.0",
+    page_title="AI Dashboard Generator v4.0",
     page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# CSS personalizzato per un design moderno
+# Layout engine responsivo
+layout_engine = ResponsiveLayoutEngine()
+layout_engine.render_responsive_css()
+
+# Accessibility manager
+a11y_manager = AccessibilityManager()
+
+# ============================================================================
+# HEADER PRINCIPALE
+# ============================================================================
+
 st.markdown(
     """
-<style>
-    .main-header {
+    <div class="main-header" style="
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         padding: 2rem;
         border-radius: 10px;
         color: white;
         text-align: center;
         margin-bottom: 2rem;
-    }
-    .metric-card {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 8px;
-        border-left: 4px solid #667eea;
-        margin-bottom: 1rem;
-    }
-    .insight-box {
-        background: #f0f8ff;
-        padding: 1rem;
-        border-left: 4px solid #4169e1;
-        border-radius: 4px;
-        margin-bottom: 1rem;
-    }
-</style>
-""",
-    unsafe_allow_html=True,
-)
-
-# Header principale
-st.markdown(
-    """
-<div class="main-header">
-    <h1>🤖 AI Data Engineer Dashboard Generator</h1>
-    <p><strong>v3.0</strong> - Carica → Analizza → Visualizza con AI</p>
-    <p style="font-size: 0.9rem; opacity: 0.9;">Sistema intelligente di rilevamento dati, KPI dinamici e raccomandazioni grafiche</p>
-</div>
-""",
+    ">
+        <h1>🤖 AI Data Engineer Dashboard Generator</h1>
+        <p><strong>v4.0</strong> - Dashboard Responsiva, Dinamica e Accessibile</p>
+        <p style="font-size: 0.9rem; opacity: 0.9;">
+            Carica → Analizza → Visualizza con AI + Layout Intelligente
+        </p>
+    </div>
+    """,
     unsafe_allow_html=True,
 )
 
 # ============================================================================
-# SIDEBAR - Caricamento file e opzioni
+# SIDEBAR - CONTROLLI PRINCIPALI
 # ============================================================================
+
 with st.sidebar:
     st.image(
         "https://img.icons8.com/fluency/96/000000/artificial-intelligence.png", width=80
     )
-    st.markdown("## 📁 Carica Dati")
 
+    st.markdown("## 📁 Carica Dati")
     uploaded_file = st.file_uploader(
         "Scegli un file",
         type=["csv", "xlsx", "xls", "json"],
@@ -89,32 +97,45 @@ with st.sidebar:
     )
 
     st.markdown("---")
-    st.markdown("### 🎯 Opzioni Visualizzazione")
-    show_insights = st.checkbox("📊 Mostra Analisi ML", value=True)
-    show_kpis = st.checkbox("💰 Mostra KPI", value=True)
-    show_dashboard = st.checkbox("📈 Mostra Dashboard", value=True)
-    show_tables = st.checkbox("📋 Mostra Tabelle", value=True)
-    show_stats = st.checkbox("📉 Mostra Statistiche", value=False)
+    st.markdown("### 🎯 Visualizzazione")
+    show_insights = st.checkbox("📊 Analisi ML", value=True)
+    show_filters = st.checkbox("🔍 Filtri Globali", value=True)
+    show_kpis = st.checkbox("💰 KPI Dinamici", value=True)
+    show_charts = st.checkbox("📈 Grafici", value=True)
+    show_tables = st.checkbox("📋 Tabelle", value=True)
 
     st.markdown("---")
-    st.markdown("### 💾 Formato Export")
-    export_formats = st.multiselect(
-        "Scegli formati di export", ["HTML", "CSV", "JSON"], default=["HTML"]
-    )
+    st.markdown("### 🎨 Layout")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🔄 Refresh Layout"):
+            st.session_state["layout_seed"] = None
+            st.rerun()
+    with col2:
+        if st.button("💾 Export All"):
+            st.info("Feature disponibile nella sezione export")
+
+    # Accessibilità
+    a11y_manager.render_accessibility_controls()
+    a11y_manager.apply_accessibility_css()
+
 
 # ============================================================================
-# FUNZIONI UTILITY
+# UTILITY FUNCTIONS
 # ============================================================================
 
 
 def clean_dataframe(df):
-    """Pulisce il dataframe per compatibilità Arrow"""
+    """Pulisce il dataframe per compatibilità"""
     df = df.copy()
     for col in df.columns:
         if df[col].dtype == "object":
             df[col] = df[col].fillna("").astype(str)
         elif pd.api.types.is_datetime64_any_dtype(df[col]):
-            df[col] = df[col].dt.strftime("%Y-%m-%d")
+            try:
+                df[col] = df[col].dt.strftime("%Y-%m-%d")
+            except:
+                pass
         elif df[col].dtype.name == "category":
             df[col] = df[col].astype(str)
     return df
@@ -122,7 +143,7 @@ def clean_dataframe(df):
 
 @st.cache_data
 def load_data(uploaded_file):
-    """Carica i dati dal file con gestione errori"""
+    """Carica i dati dal file"""
     file_extension = Path(uploaded_file.name).suffix.lower()
 
     try:
@@ -148,528 +169,252 @@ def load_data(uploaded_file):
         return None
 
 
-def display_ml_insights(ml_analyzer):
-    """Mostra gli insights ottenuti dall'analisi ML"""
-    st.markdown("---")
-    st.subheader("🔍 Analisi Intelligente dei Dati")
-
-    profile = ml_analyzer.analyze_data_profile()
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.metric(
-            "📊 Shape Dataset",
-            f"{profile['shape'][0]} × {profile['shape'][1]}",
-            "righe × colonne",
-        )
-
-    with col2:
-        quality = profile.get("missing_percentage", {})
-        avg_missing = np.mean(list(quality.values())) if quality else 0
-        st.metric("🛡️ Completezza Media", f"{100 - avg_missing:.1f}%", "dati non nulli")
-
-    with col3:
-        st.metric(
-            "🔢 Metriche Numeriche", len(ml_analyzer.numeric_cols), "colonne numeriche"
-        )
-
-    # Mostra problemi di qualità
-    issues = profile.get("data_quality_issues", [])
-    if issues:
-        st.markdown("### ⚠️ Problemi di Qualità Dati")
-        for issue in issues[:3]:
-            severity_icon = "🔴" if issue.get("severity") == "high" else "🟡"
-            st.warning(
-                f"{severity_icon} {issue.get('message', 'Problema sconosciuto')}"
-            )
-
-    # Mostra correlazioni forti
-    strong_corr = profile.get("strong_correlations", [])
-    if strong_corr:
-        st.markdown("### 📈 Correlazioni Rilevate")
-        for corr in strong_corr[:3]:
-            st.info(
-                f"🔗 **{corr['var1']}** ↔ **{corr['var2']}** (r = {corr['correlation']:.2f})"
-            )
-
-    # Mostra tipi di dati rilevati
-    st.markdown("### 🏷️ Tipi di Dati Rilevati")
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        if ml_analyzer.monetary_cols:
-            st.success(f"💰 Monetarie: {', '.join(ml_analyzer.monetary_cols[:2])}")
-
-    with col2:
-        if ml_analyzer.percentage_cols:
-            st.info(f"📊 Percentuali: {', '.join(ml_analyzer.percentage_cols[:2])}")
-
-    with col3:
-        if ml_analyzer.datetime_cols:
-            st.success(f"📅 Temporali: {', '.join(ml_analyzer.datetime_cols[:2])}")
-
-
-def display_smart_tables(df, ml_analyzer):
-    """Mostra tabelle intelligenti - summary e dettagli"""
-    st.markdown("---")
-    st.subheader("📋 Tabelle Intelligenti")
-
-    tab1, tab2, tab3 = st.tabs(["📊 Summary", "🔍 Dettagli Completi", "📈 Statistiche"])
-
-    with tab1:
-        st.markdown("#### Anteprima Dati (Prime 10 righe)")
-        st.dataframe(df.head(10), use_container_width=True)
-
-        st.markdown("#### Statistiche Descrittive")
-        numeric_df = df.select_dtypes(include=[np.number])
-        if len(numeric_df.columns) > 0:
-            st.dataframe(numeric_df.describe(), use_container_width=True)
-
-    with tab2:
-        st.markdown("#### Dataset Completo (Esplorabile)")
-        st.dataframe(df, use_container_width=True)
-
-    with tab3:
-        st.markdown("#### Profilo Dati")
-        profile = ml_analyzer.analyze_data_profile()
-
-        # Cardinalità
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("##### Colonne e Cardinalità")
-            card_df = pd.DataFrame(
-                {
-                    "Colonna": list(profile["unique_counts"].keys()),
-                    "Valori Unici": list(profile["unique_counts"].values()),
-                    "Tipo": [
-                        str(profile["data_types"].get(c, "Unknown"))
-                        for c in profile["unique_counts"].keys()
-                    ],
-                }
-            )
-            st.dataframe(card_df, use_container_width=True)
-
-        with col2:
-            st.markdown("##### Dati Mancanti (%)")
-            missing_df = pd.DataFrame(
-                {
-                    "Colonna": list(profile["missing_percentage"].keys()),
-                    "Missing %": [
-                        f"{v:.1f}%" for v in profile["missing_percentage"].values()
-                    ],
-                }
-            )
-            st.dataframe(missing_df, use_container_width=True)
-
-
-def generate_dashboard_html(df, ml_analyzer):
-    """Genera dashboard HTML intelligente con DashboardGenerator"""
-    try:
-        # Crea generatore dashboard
-        dashboard_gen = DashboardGenerator(df, ml_analyzer, insights=None)
-
-        # Genera KPI cards HTML
-        kpi_html = ""
-        for kpi in dashboard_gen.kpis:
-            kpi_html += f"""
-            <div class="kpi-card">
-                <div class="kpi-label">{kpi['icon']} {kpi['title']}</div>
-                <div class="kpi-value">{kpi['value']}</div>
-                <div class="kpi-trend" style="font-size: 0.85rem; color: #666;">{kpi.get('trend', '')}</div>
-            </div>
-            """
-
-        # Genera grafici dinamicamente
-        grafici_html = ""
-        chart_functions = {
-            "line": dashboard_gen.create_line_chart,
-            "bar": dashboard_gen.create_bar_chart,
-            "scatter": dashboard_gen.create_scatter_chart,
-            "bubble": dashboard_gen.create_bubble_chart,
-            "heatmap": dashboard_gen.create_heatmap_chart,
-            "histogram": dashboard_gen.create_histogram_chart,
-            "boxplot": dashboard_gen.create_boxplot_chart,
-            "treemap": dashboard_gen.create_treemap_chart,
-            "radar": dashboard_gen.create_radar_chart,
-            "violin": dashboard_gen.create_violin_chart,
-            "area": dashboard_gen.create_area_chart,
-            "pie": dashboard_gen.create_pie_chart,
-        }
-
-        chart_counter = 0
-        for idx, chart_type in enumerate(dashboard_gen.chart_types):
-            try:
-                if chart_type in chart_functions:
-                    fig = chart_functions[chart_type](idx)
-                    fig_json = json.dumps(fig.to_dict(), cls=PlotlyJSONEncoder)
-                    icon = dashboard_gen.get_chart_icon(chart_type)
-
-                    grafici_html += f"""
-                    <div class="chart-card">
-                        <div id="chart_{chart_counter}" style="width:100%; height:350px;"></div>
-                    </div>
-                    <script>
-                        (function() {{
-                            var fig_{chart_counter} = {fig_json};
-                            Plotly.newPlot('chart_{chart_counter}', fig_{chart_counter}.data, fig_{chart_counter}.layout, {{responsive: true}});
-                        }})();
-                    </script>
-                    """
-                    chart_counter += 1
-            except Exception as e:
-                st.warning(f"⚠️ Errore grafico {chart_type}: {str(e)}")
-                continue
-
-        # Template HTML completo moderno
-        html_template = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Dashboard Interattiva - AI Generated</title>
-            <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-                * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-                body {{
-                    background: #F9FBF4;
-                    font-family: 'Segoe UI', Arial, sans-serif;
-                    padding: 20px;
-                }}
-                .dashboard {{
-                    max-width: 1200px;
-                    margin: 0 auto;
-                    box-sizing: border-box;
-                }}
-                .header {{
-                    background: linear-gradient(135deg, #667eea, #764ba2);
-                    border-radius: 15px;
-                    padding: 40px;
-                    color: white;
-                    text-align: center;
-                    margin-bottom: 30px;
-                }}
-                .header h1 {{
-                    font-size: 2.5rem;
-                    margin-bottom: 10px;
-                }}
-                .header p {{
-                    opacity: 0.9;
-                    font-size: 1.1rem;
-                }}
-                .kpi-row {{
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-                    gap: 15px;
-                    margin-bottom: 30px;
-                }}
-                .kpi-card {{
-                    background: white;
-                    border-radius: 12px;
-                    padding: 20px;
-                    text-align: center;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-                    border-left: 5px solid #667eea;
-                    transition: transform 0.3s ease, box-shadow 0.3s ease;
-                }}
-                .kpi-card:hover {{
-                    transform: translateY(-4px);
-                    box-shadow: 0 6px 16px rgba(0,0,0,0.12);
-                }}
-                .kpi-label {{
-                    font-size: 0.85rem;
-                    text-transform: uppercase;
-                    letter-spacing: 1px;
-                    color: #666;
-                    margin-bottom: 10px;
-                }}
-                .kpi-value {{
-                    font-size: 1.8rem;
-                    font-weight: bold;
-                    color: #333;
-                }}
-                .charts-grid {{
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
-                    gap: 20px;
-                    margin-bottom: 30px;
-                }}
-                .chart-card {{
-                    background: white;
-                    border-radius: 12px;
-                    padding: 15px;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-                    transition: transform 0.2s;
-                }}
-                .chart-card:hover {{
-                    transform: translateY(-2px);
-                    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-                }}
-                .footer {{
-                    text-align: center;
-                    margin-top: 40px;
-                    padding: 20px;
-                    color: #999;
-                    font-size: 0.8rem;
-                    border-top: 1px solid #eee;
-                }}
-                @media (max-width: 768px) {{
-                    .charts-grid {{ grid-template-columns: 1fr; }}
-                    .header h1 {{ font-size: 1.8rem; }}
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="dashboard">
-                <div class="header">
-                    <h1>📊 Dashboard Interattiva Intelligente</h1>
-                    <p>✨ Generata automaticamente con AI Data Engineering</p>
-                </div>
-                
-                <div class="kpi-row">
-                    {kpi_html}
-                </div>
-                
-                <div class="charts-grid">
-                    {grafici_html}
-                </div>
-                
-                <div class="footer">
-                    <p>🤖 Generato da AI Dashboard Generator v3.0 | {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}</p>
-                </div>
-            </div>
-        </body>
-        </html>
-        """
-
-        return html_template
-
-    except Exception as e:
-        st.error(f"❌ Errore nella generazione dashboard: {str(e)}")
-        return f"<h1>Errore: {str(e)}</h1>"
-
-
 # ============================================================================
-# MAIN APPLICATION LOGIC
+# MAIN APPLICATION
 # ============================================================================
 
 if uploaded_file is not None:
-    with st.spinner("🔄 Caricamento e analisi dei dati..."):
+    with st.spinner("🔄 Caricamento e analisi dati..."):
         df = load_data(uploaded_file)
 
         if df is not None and len(df) > 0:
             st.success(
-                f"✅ File caricato: **{len(df):,}** righe, **{len(df.columns)}** colonne"
+                f"✅ File caricato: **{len(df):,}** righe × **{len(df.columns)}** colonne"
             )
 
             # Inizializza ML Analyzer
             ml_analyzer = MLAnalyzer(df)
 
             # ================================================================
-            # SEZIONE INSIGHTS ML
+            # SEZIONE 1: INSIGHTS ML
             # ================================================================
             if show_insights:
-                display_ml_insights(ml_analyzer)
+                st.markdown("---")
+                st.subheader("🔍 Analisi Intelligente dei Dati")
+
+                profile = ml_analyzer.analyze_data_profile()
+
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+                    st.metric(
+                        "📊 Shape",
+                        f"{profile['shape'][0]} × {profile['shape'][1]}",
+                        help="Righe × Colonne",
+                    )
+
+                with col2:
+                    quality = profile.get("missing_percentage", {})
+                    avg_missing = np.mean(list(quality.values())) if quality else 0
+                    st.metric("🛡️ Completezza", f"{100-avg_missing:.1f}%")
+
+                with col3:
+                    numeric_count = (
+                        len(ml_analyzer.numeric_cols)
+                        if hasattr(ml_analyzer, "numeric_cols")
+                        else 0
+                    )
+                    st.metric("🔢 Colonne Numeriche", numeric_count)
+
+                # Problemi qualità
+                issues = profile.get("data_quality_issues", [])
+                if issues:
+                    with st.expander("⚠️ Problemi di Qualità"):
+                        for issue in issues[:5]:
+                            severity = "🔴" if issue.get("severity") == "high" else "🟡"
+                            st.warning(f"{severity} {issue.get('message', 'Problema')}")
+
+                # Correlazioni
+                strong_corr = profile.get("strong_correlations", [])
+                if strong_corr:
+                    with st.expander("📈 Correlazioni Forti"):
+                        for corr in strong_corr[:5]:
+                            st.info(
+                                f"🔗 **{corr['var1']}** ↔ **{corr['var2']}** (r = {corr['correlation']:.2f})"
+                            )
 
             # ================================================================
-            # SEZIONE FILTRI INTERATTIVI
+            # SEZIONE 2: FILTRI GLOBALI
             # ================================================================
-            st.markdown("---")
-            st.subheader("🔍 Filtri Interattivi")
+            if show_filters:
+                filter_bar = FilterBar(df)
+                filter_bar.render()
 
-            filters = {}
-            col1, col2, col3 = st.columns(3)
+                # Applica filtri
+                filtered_df = filter_bar.apply_to_dataframe(df)
 
-            numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-            categorical_cols = df.select_dtypes(include=["object"]).columns.tolist()
-
-            # Filtro categorico
-            with col1:
-                if categorical_cols:
-                    filter_col_1 = st.selectbox(
-                        "🏷️ Filtro Categoria",
-                        [None] + categorical_cols,
-                        key="filter_cat_1",
+                if filter_bar.manager.has_active_filters():
+                    st.info(
+                        f"📊 Filtri attivi: **{len(filtered_df):,}** di **{len(df):,}** righe "
+                        f"({len(filtered_df)/len(df)*100:.1f}%)"
                     )
-                    if filter_col_1:
-                        filter_values_1 = st.multiselect(
-                            f"Seleziona {filter_col_1}",
-                            df[filter_col_1].unique(),
-                            default=df[filter_col_1].unique()[:5],
-                            key="filter_values_1",
-                        )
-                        if filter_values_1:
-                            filters[filter_col_1] = filter_values_1
-
-            # Filtro numerico (range)
-            with col2:
-                if numeric_cols:
-                    filter_col_2 = st.selectbox(
-                        "📊 Filtro Range Numerico",
-                        [None] + numeric_cols,
-                        key="filter_num_1",
-                    )
-                    if filter_col_2:
-                        min_val = float(df[filter_col_2].min())
-                        max_val = float(df[filter_col_2].max())
-                        range_vals = st.slider(
-                            f"Range {filter_col_2}",
-                            min_val,
-                            max_val,
-                            (min_val, max_val),
-                            key="filter_range_1",
-                        )
-                        filters[f"{filter_col_2}_range"] = range_vals
-
-            # Bottone reset filtri
-            with col3:
-                if st.button("🔄 Reset Filtri", key="reset_filters"):
-                    filters = {}
-                    st.rerun()
-
-            # Applica filtri
-            filtered_df = df.copy()
-
-            # Applica filtri categorici
-            for col, values in filters.items():
-                if col in df.columns:
-                    filtered_df = filtered_df[filtered_df[col].isin(values)]
-
-            # Applica filtri numerici
-            for key, (min_v, max_v) in filters.items():
-                if "_range" in key:
-                    col_name = key.replace("_range", "")
-                    if col_name in df.columns:
-                        filtered_df = filtered_df[
-                            (filtered_df[col_name] >= min_v)
-                            & (filtered_df[col_name] <= max_v)
-                        ]
-
-            if filters:
-                st.info(
-                    f"✅ Filtri applicati: **{len(filtered_df):,}** righe su **{len(df):,}** ({len(filtered_df)/len(df)*100:.1f}%)"
-                )
+                    filter_bar.show_active_filters()
             else:
                 filtered_df = df
 
+            # Reinizializza analyzer con dati filtrati
+            ml_analyzer_filtered = MLAnalyzer(filtered_df)
+
             # ================================================================
-            # SEZIONE KPI
+            # SEZIONE 3: KPI DINAMICI
             # ================================================================
             if show_kpis:
                 st.markdown("---")
                 st.subheader("💰 Key Performance Indicators")
 
-                ml_analyzer_filtered = MLAnalyzer(filtered_df)
-                dashboard_gen = DashboardGenerator(
-                    filtered_df, ml_analyzer_filtered, None
-                )
-
-                cols = st.columns(len(dashboard_gen.kpis))
-                for i, kpi in enumerate(dashboard_gen.kpis):
-                    with cols[i % len(cols)]:
-                        st.metric(
-                            label=f"{kpi['icon']} {kpi['title']}",
-                            value=kpi["value"],
-                            delta=kpi.get("trend", ""),
-                        )
-
-            # ================================================================
-            # SEZIONE TABELLE
-            # ================================================================
-            if show_tables:
-                display_smart_tables(filtered_df, ml_analyzer_filtered)
-
-            # ================================================================
-            # SEZIONE DASHBOARD HTML
-            # ================================================================
-            if show_dashboard:
-                st.markdown("---")
-                st.subheader("📊 Dashboard Interattiva")
-
                 try:
-                    html_content = generate_dashboard_html(
-                        filtered_df, ml_analyzer_filtered
+                    # Crea grid KPI dinamico
+                    dashboard_gen = DashboardGenerator(
+                        filtered_df, ml_analyzer_filtered, None
                     )
 
-                    with tempfile.NamedTemporaryFile(
-                        mode="w", suffix=".html", delete=False, encoding="utf-8"
-                    ) as f:
-                        f.write(html_content)
-                        temp_path = f.name
+                    # Seleziona KPI intelligentemente
+                    randomizer = LayoutRandomizer()
+                    kpi_range = layout_engine.get_kpi_range()
+                    num_kpis = np.random.randint(kpi_range[0], kpi_range[1])
 
-                    with open(temp_path, "r", encoding="utf-8") as f:
-                        html_string = f.read()
-
-                    st.components.v1.html(html_string, height=900, scrolling=True)
-
-                    os.unlink(temp_path)
-
-                    # ========== DOWNLOAD OPTIONS ==========
-                    st.markdown("---")
-                    st.markdown("### 💾 Scarica Risultati")
-
-                    col_dl1, col_dl2, col_dl3 = st.columns(3)
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-                    # Download HTML
-                    with col_dl1:
-                        st.download_button(
-                            label="📄 Scarica Dashboard (HTML)",
-                            data=html_content,
-                            file_name=f"dashboard_{timestamp}.html",
-                            mime="text/html",
+                    kpi_configs = []
+                    for kpi in dashboard_gen.kpis[:num_kpis]:
+                        kpi_configs.append(
+                            KPICard(
+                                title=kpi.get("title", "KPI"),
+                                value=kpi.get("value", 0),
+                                icon=kpi.get("icon", "📊"),
+                                trend=None,
+                                unit="",
+                            )
                         )
 
-                    # Download CSV
-                    with col_dl2:
-                        csv_data = filtered_df.to_csv(index=False)
-                        st.download_button(
-                            label="📊 Scarica Dati (CSV)",
-                            data=csv_data,
-                            file_name=f"data_{timestamp}.csv",
-                            mime="text/csv",
-                        )
-
-                    # Download JSON
-                    with col_dl3:
-                        json_data = filtered_df.to_json(orient="records")
-                        st.download_button(
-                            label="🔗 Scarica Dati (JSON)",
-                            data=json_data,
-                            file_name=f"data_{timestamp}.json",
-                            mime="application/json",
-                        )
+                    # Renderizza grid
+                    num_cols = layout_engine.get_kpi_columns()
+                    render_kpi_grid(kpi_configs, num_columns=num_cols)
 
                 except Exception as e:
-                    st.error(f"❌ Errore generazione dashboard: {str(e)}")
+                    st.error(f"❌ Errore KPI: {str(e)}")
 
-        else:
-            st.error("❌ Errore nel caricamento del file")
+            # ================================================================
+            # SEZIONE 4: GRAFICI INTELLIGENTI
+            # ================================================================
+            if show_charts:
+                st.markdown("---")
+                st.subheader("📈 Grafici Intelligenti")
+
+                try:
+                    # Detecta chart candidati
+                    chart_candidates = get_chart_candidates(filtered_df)
+
+                    if chart_candidates:
+                        # Layout randomizer per charts
+                        chart_config = create_dynamic_chart_grid(
+                            chart_candidates, layout_engine
+                        )
+
+                        st.caption(
+                            f"Template: {chart_config['template']['description']}"
+                        )
+
+                        # Renderizza charts
+                        num_cols = chart_config["num_cols"]
+                        cols = st.columns(num_cols)
+
+                        for idx, chart in enumerate(chart_config["charts"][:6]):
+                            col_idx = idx % num_cols
+                            render_intelligent_chart(
+                                filtered_df, chart, col=cols[col_idx]
+                            )
+                    else:
+                        st.info("📊 Non abbastanza dati per generare grafici")
+
+                except Exception as e:
+                    st.error(f"❌ Errore grafici: {str(e)}")
+
+            # ================================================================
+            # SEZIONE 5: TABELLE INTERACTIVE
+            # ================================================================
+            if show_tables:
+                st.markdown("---")
+
+                # Usa tabella interattiva
+                table = InteractiveTable(filtered_df, title="Dati Dettagliati")
+                table.render()
+
+            # ================================================================
+            # SEZIONE 6: EXPORT
+            # ================================================================
+            st.markdown("---")
+            st.subheader("💾 Download Risultati")
+
+            col1, col2, col3 = st.columns(3)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+            with col1:
+                csv_data = filtered_df.to_csv(index=False)
+                st.download_button(
+                    "📊 CSV", csv_data, f"data_{timestamp}.csv", "text/csv"
+                )
+
+            with col2:
+                json_data = filtered_df.to_json(orient="records")
+                st.download_button(
+                    "🔗 JSON", json_data, f"data_{timestamp}.json", "application/json"
+                )
+
+            with col3:
+                # Excel export (richiede openpyxl)
+                try:
+                    import openpyxl
+
+                    with tempfile.NamedTemporaryFile(
+                        suffix=".xlsx", delete=False
+                    ) as tmp:
+                        filtered_df.to_excel(tmp.name, index=False)
+                        with open(tmp.name, "rb") as f:
+                            st.download_button(
+                                "📋 Excel",
+                                f.read(),
+                                f"data_{timestamp}.xlsx",
+                                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            )
+                except:
+                    st.button("📋 Excel", disabled=True, help="Richiede openpyxl")
+
 else:
-    # Messaggio iniziale
+    # Landing page
     st.markdown("""
     ## 👈 Carica un File per Iniziare
-
-    Questa applicazione genera automaticamente:
     
-    - 📊 **Dashboard interattive** con grafici intelligenti
-    - 💰 **KPI dinamici** rilevati automaticamente dai dati
-    - 🔍 **Analisi ML** per qualità, correlazioni e anomalie
-    - 📋 **Tabelle intelligenti** con statistiche descrittive
-    - 📈 **Visualizzazioni ottimizzate** per il tuo dataset
+    **Dashboard Generator v4.0** crea automaticamente:
     
-    ### 📌 Esempi di Dati Supportati:
-    - **Vendite**: date, prodotto, quantità, prezzo, regione
-    - **Clienti**: età, città, spesa, numero acquisti
-    - **Marketing**: click, impressioni, conversioni, costo
-    - **Finanza**: entrate, uscite, profitto, margine
-    - **Operazioni**: KPI, metriche, target, status
+    ### ✨ Funzionalità
+    - 📊 **Grafici Intelligenti** - Tipo di grafico automatico per i tuoi dati
+    - 💰 **KPI Dinamici** - Metriche rilevate dal dataset
+    - 🔍 **Analisi ML** - Qualità dati, correlazioni, anomalie
+    - 📋 **Tabelle Interattive** - Filtri, sorting, ricerca
+    - 🎨 **Layout Responsivo** - Perfetto su qualsiasi dispositivo
+    - ♿ **Accessibile** - WCAG 2.1 AA compliant
+    - 🔄 **Layout Dinamico** - Design sempre fresco ad ogni caricamento
+    
+    ### 📌 Formati Supportati
+    - CSV (UTF-8, Latin1, ISO-8859-1)
+    - Excel (XLSX, XLS)
+    - JSON
+    
+    ### 🎯 Casi d'uso
+    - 📈 **Vendite**: Data, Prodotto, Quantità, Prezzo, Regione
+    - 👥 **Clienti**: Nome, Città, Spesa, # Acquisti, Status
+    - 📢 **Marketing**: Click, Impressioni, Conversioni, Costo
+    - 💼 **Finanza**: Entrate, Uscite, Profitto, Margine
+    - ⚙️ **Operazioni**: KPI, Metriche, Target, Status
     """)
 
-# Footer
+# ============================================================================
+# FOOTER
+# ============================================================================
+
 st.markdown("---")
 st.markdown(
-    "<p style='text-align: center; color: gray; font-size: 0.85rem;'>🤖 AI Data Engineer Dashboard Generator v3.0 | Powered by ML & Streamlit</p>",
+    "<p style='text-align: center; color: gray; font-size: 0.85rem;'>"
+    "🤖 AI Dashboard Generator v4.0 | Responsive • Dynamic • Accessible"
+    "</p>",
     unsafe_allow_html=True,
 )
