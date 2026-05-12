@@ -6,7 +6,7 @@ Fornisce freschezza visiva ad ogni caricamento della dashboard
 import random
 import numpy as np
 from datetime import datetime
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 import pandas as pd
 
 
@@ -390,3 +390,268 @@ def create_dynamic_chart_grid(charts: List[Dict], layout_engine) -> Dict:
         "template": template,
         "randomizer": randomizer,
     }
+
+
+class AdvancedLayoutRandomizer:
+    """
+    Versione avanzata del Layout Randomizer con controlli di coerenza
+    Crea layout sempre diversi mantenendo UX coerente
+    """
+
+    def __init__(
+        self, num_kpis: int = 0, num_charts: int = 0, viewport_width: int = 1024
+    ):
+        """
+        Inizializza il randomizer avanzato
+
+        Args:
+            num_kpis: Numero KPI disponibili
+            num_charts: Numero charts disponibili
+            viewport_width: Larghezza viewport in pixel
+        """
+        self.num_kpis = num_kpis
+        self.num_charts = num_charts
+        self.viewport_width = viewport_width
+        self.seed = int(datetime.now().timestamp() / 3600)
+        random.seed(self.seed)
+
+    def generate_layout(self) -> Dict:
+        """
+        Genera configurazione layout completa, casuale ma bilanciata
+
+        Returns:
+            Dizionario con configurazione layout
+        """
+        layout = {
+            "kpi_section": self._generate_kpi_layout(),
+            "chart_section": self._generate_chart_layout(),
+            "table_section": self._generate_table_layout(),
+            "color_theme": self._select_color_theme(),
+            "spacing": self._calculate_spacing(),
+            "animations": self._select_animations(),
+            "seed": self.seed,
+        }
+
+        return layout
+
+    def _generate_kpi_layout(self) -> Dict:
+        """Genera layout casuale per KPI grid"""
+
+        # Numero colonne basato su viewport
+        if self.viewport_width < 768:
+            num_cols = random.choice([1, 2])
+        elif self.viewport_width < 1200:
+            num_cols = random.choice([2, 3])
+        else:
+            num_cols = random.choice([3, 4])
+
+        # Numero KPI da mostrare (4-8)
+        num_display = (
+            random.randint(4, min(8, self.num_kpis)) if self.num_kpis > 0 else 4
+        )
+
+        # Ordine casuale
+        kpi_order = list(range(min(num_display, self.num_kpis)))
+        random.shuffle(kpi_order)
+
+        return {
+            "columns": num_cols,
+            "order": kpi_order,
+            "count": num_display,
+            "gap": random.choice([16, 20, 24]),
+            "animation": random.choice(["fade", "slide", "scale"]),
+            "card_height": random.choice(["auto", "150px", "180px"]),
+        }
+
+    def _generate_chart_layout(self) -> List[Dict]:
+        """Genera layout casuale per charts"""
+
+        charts = []
+        remaining_charts = self.num_charts
+
+        while remaining_charts > 0:
+            # Numero colonne per questa riga
+            if self.viewport_width < 768:
+                cols = 1
+            elif self.viewport_width < 1200:
+                cols = min(remaining_charts, random.choice([1, 2]))
+            else:
+                cols = min(remaining_charts, random.choice([2, 2, 3]))
+
+            charts.append(
+                {
+                    "columns": cols,
+                    "gap": random.choice([16, 20]),
+                    "height": random.choice([400, 450, 500]),
+                    "aspect_ratio": random.choice(["auto", "16/9", "4/3"]),
+                }
+            )
+
+            remaining_charts -= cols
+
+        return charts
+
+    def _generate_table_layout(self) -> Dict:
+        """Genera layout per tabella"""
+
+        return {
+            "position": "bottom",
+            "visible_rows": random.choice([10, 15, 20]),
+            "striped": random.choice([True, False]),
+            "hover_effect": True,
+            "pagination": True,
+        }
+
+    def _select_color_theme(self) -> Dict[str, str]:
+        """Seleziona tema colori casuale ma accessibile"""
+
+        themes = [
+            {
+                "primary": "#667eea",
+                "secondary": "#764ba2",
+                "accent": "#f59e0b",
+                "success": "#10b981",
+                "danger": "#ef4444",
+                "name": "blue-purple",
+            },
+            {
+                "primary": "#3b82f6",
+                "secondary": "#1e40af",
+                "accent": "#10b981",
+                "success": "#059669",
+                "danger": "#dc2626",
+                "name": "blue-green",
+            },
+            {
+                "primary": "#6366f1",
+                "secondary": "#4f46e5",
+                "accent": "#ec4899",
+                "success": "#10b981",
+                "danger": "#ef4444",
+                "name": "indigo-pink",
+            },
+            {
+                "primary": "#10b981",
+                "secondary": "#059669",
+                "accent": "#f59e0b",
+                "success": "#34d399",
+                "danger": "#ef4444",
+                "name": "green-amber",
+            },
+        ]
+
+        return random.choice(themes)
+
+    def _calculate_spacing(self) -> Dict[str, int]:
+        """Calcola spacing adattativo"""
+
+        return {
+            "header_margin": random.choice([20, 24, 28]),
+            "section_gap": random.choice([32, 40, 48]),
+            "element_padding": random.choice([12, 16, 20]),
+            "border_radius": random.choice([8, 10, 12]),
+        }
+
+    def _select_animations(self) -> Dict[str, str]:
+        """Seleziona animazioni"""
+
+        return {
+            "entrance": random.choice(["fade-in", "slide-up", "zoom-in"]),
+            "interaction": random.choice(["subtle", "smooth", "playful"]),
+            "transition_speed": random.choice(["fast", "normal", "slow"]),
+        }
+
+    def validate_layout(self, layout: Dict) -> bool:
+        """Valida che layout sia equilibrato e usabile"""
+
+        checks = {
+            "min_kpis_visible": layout["kpi_section"]["count"] >= 4,
+            "charts_present": len(layout["chart_section"]) > 0,
+            "reading_flow": True,  # KPI prima di charts
+            "max_height": self._calculate_total_height(layout) < 5000,
+        }
+
+        return all(checks.values())
+
+    def _calculate_total_height(self, layout: Dict) -> int:
+        """Calcola altezza totale della pagina"""
+
+        total = 100  # Header
+        total += 60  # Filter bar
+        total += layout["kpi_section"]["count"] * 150 / layout["kpi_section"]["columns"]
+
+        for chart in layout["chart_section"]:
+            total += chart["height"]
+
+        total += 400  # Table
+
+        return int(total)
+
+
+class LayoutBalancer:
+    """Assicura che layout casuale rimane equilibrato e usabile"""
+
+    @staticmethod
+    def validate_kpi_layout(num_kpis: int, num_cols: int) -> bool:
+        """Verifica che KPI layout non sia squilibrato"""
+        # KPI per colonna non deve essere troppo pochi o troppi
+        kpis_per_col = num_kpis / num_cols
+        return 1 <= kpis_per_col <= 4
+
+    @staticmethod
+    def adjust_spacing(num_cols: int) -> int:
+        """Spacing adattativo basato su numero colonne"""
+        spacing_map = {1: 24, 2: 20, 3: 16, 4: 12}
+        return spacing_map.get(num_cols, 16)
+
+    @staticmethod
+    def validate_chart_distribution(charts: List[Dict], viewport_width: int) -> bool:
+        """Verifica che charts siano distribuiti equilibratamente"""
+
+        # Almeno 1 chart per riga
+        for row in charts:
+            if row["columns"] < 1:
+                return False
+
+        # Non più di 3 colonne su mobile
+        if viewport_width < 768:
+            return all(row["columns"] <= 1 for row in charts)
+
+        return True
+
+
+class LayoutMemory:
+    """Permette agli utenti di salvare e ricaricare layout preferiti"""
+
+    def __init__(self, storage_path: str = ".layout_cache"):
+        self.storage_path = storage_path
+        self.layouts = {}
+
+    def save_layout(self, layout_id: str, layout: Dict) -> bool:
+        """Salva un layout con ID"""
+        try:
+            self.layouts[layout_id] = {
+                "layout": layout,
+                "created_at": datetime.now().isoformat(),
+            }
+            return True
+        except Exception as e:
+            print(f"Errore salvataggio layout: {e}")
+            return False
+
+    def load_layout(self, layout_id: str) -> Optional[Dict]:
+        """Carica un layout precedentemente salvato"""
+        if layout_id in self.layouts:
+            return self.layouts[layout_id]["layout"]
+        return None
+
+    def delete_layout(self, layout_id: str) -> bool:
+        """Elimina un layout salvato"""
+        if layout_id in self.layouts:
+            del self.layouts[layout_id]
+            return True
+        return False
+
+    def list_saved_layouts(self) -> List[str]:
+        """Elenca tutti i layout salvati"""
+        return list(self.layouts.keys())

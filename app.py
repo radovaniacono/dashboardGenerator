@@ -20,6 +20,9 @@ from dashboard_generator import DashboardGenerator
 from responsive_layout import ResponsiveLayoutEngine, create_responsive_columns
 from layout_randomizer import (
     LayoutRandomizer,
+    AdvancedLayoutRandomizer,
+    LayoutBalancer,
+    LayoutMemory,
     create_dynamic_kpi_grid,
     create_dynamic_chart_grid,
 )
@@ -29,6 +32,7 @@ from kpi_cards import (
     create_kpi_from_metric,
     render_kpi_summary,
 )
+from kpi_calculator import KPICalculator, KPI
 from charts_intelligent import (
     IntelligentChartBuilder,
     get_chart_candidates,
@@ -37,6 +41,7 @@ from charts_intelligent import (
 from tables_interactive import InteractiveTable, render_table_with_filters
 from filter_system import GlobalFilterManager, FilterBar
 from accessibility import AccessibilityManager, add_skip_link, ColorAccessibility
+from error_handler import DashboardErrorHandler, ErrorMessageFormatter
 
 # ============================================================================
 # CONFIGURAZIONE PAGINA E TEMA
@@ -142,8 +147,40 @@ def clean_dataframe(df):
 
 
 @st.cache_data
+def load_data_with_validation(uploaded_file):
+    """
+    Carica i dati dal file con validazione e correzione automatica
+
+    Returns:
+        Tuple: (is_valid: bool, df: pd.DataFrame, corrections: List[str])
+    """
+    error_handler = DashboardErrorHandler()
+
+    # Salva file temporaneamente
+    temp_path = tempfile.NamedTemporaryFile(
+        delete=False, suffix=Path(uploaded_file.name).suffix
+    ).name
+    with open(temp_path, "wb") as f:
+        f.write(uploaded_file.getbuffer())
+
+    # Valida e ripara
+    is_valid, df, corrections = error_handler.validate_and_repair_file(temp_path)
+
+    # Pulisci temp file
+    try:
+        os.remove(temp_path)
+    except:
+        pass
+
+    if is_valid and df is not None:
+        df = clean_dataframe(df)
+
+    return is_valid, df, corrections
+
+
+@st.cache_data
 def load_data(uploaded_file):
-    """Carica i dati dal file"""
+    """Carica i dati dal file (compatibilità)"""
     file_extension = Path(uploaded_file.name).suffix.lower()
 
     try:
@@ -174,16 +211,31 @@ def load_data(uploaded_file):
 # ============================================================================
 
 if uploaded_file is not None:
-    with st.spinner("🔄 Caricamento e analisi dati..."):
-        df = load_data(uploaded_file)
+    with st.spinner("🔄 Caricamento, validazione e analisi dati..."):
+        # Step 1: Carica con validazione e correzione automatica
+        is_valid, df, corrections = load_data_with_validation(uploaded_file)
 
-        if df is not None and len(df) > 0:
+        if is_valid and df is not None and len(df) > 0:
+            # Mostra correzioni applicate se presenti
+            if corrections:
+                with st.expander("⚙️ Correzioni Automatiche Applicate", expanded=False):
+                    for correction in corrections:
+                        if "✅" in correction:
+                            st.success(correction)
+                        elif "⚠️" in correction:
+                            st.warning(correction)
+                        else:
+                            st.info(correction)
+
             st.success(
                 f"✅ File caricato: **{len(df):,}** righe × **{len(df.columns)}** colonne"
             )
 
             # Inizializza ML Analyzer
             ml_analyzer = MLAnalyzer(df)
+
+            # Inizializza KPI Calculator
+            kpi_calculator = KPICalculator(df, ml_analyzer)
 
             # ================================================================
             # SEZIONE 1: INSIGHTS ML
@@ -252,45 +304,105 @@ if uploaded_file is not None:
             else:
                 filtered_df = df
 
-            # Reinizializza analyzer con dati filtrati
+            # Reinizializza analyzer e calculator con dati filtrati
             ml_analyzer_filtered = MLAnalyzer(filtered_df)
+            kpi_calculator_filtered = KPICalculator(filtered_df, ml_analyzer_filtered)
 
             # ================================================================
-            # SEZIONE 3: KPI DINAMICI
+            # SEZIONE 3: KPI DINAMICI (NUOVI - INTELLIGENTI)
             # ================================================================
             if show_kpis:
                 st.markdown("---")
-                st.subheader("💰 Key Performance Indicators")
+                st.subheader("💰 Key Performance Indicators Intelligenti")
 
                 try:
-                    # Crea grid KPI dinamico
-                    dashboard_gen = DashboardGenerator(
-                        filtered_df, ml_analyzer_filtered, None
-                    )
+                    # Calcola KPI automaticamente
+                    kpis = kpi_calculator_filtered.calculate_all_kpis(max_kpis=8)
 
-                    # Seleziona KPI intelligentemente
-                    randomizer = LayoutRandomizer()
-                    kpi_range = layout_engine.get_kpi_range()
-                    num_kpis = np.random.randint(kpi_range[0], kpi_range[1])
+                    # Ottieni data quality assessment
+                    quality = kpi_calculator_filtered._assess_data_quality()
 
-                    kpi_configs = []
-                    for kpi in dashboard_gen.kpis[:num_kpis]:
-                        kpi_configs.append(
-                            KPICard(
-                                title=kpi.get("title", "KPI"),
-                                value=kpi.get("value", 0),
-                                icon=kpi.get("icon", "📊"),
-                                trend=None,
-                                unit="",
-                            )
+                    # Mostra qualità dati
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric(
+                            "📊 Completezza", f"{quality['completeness_pct']:.1f}%"
                         )
+                    with col2:
+                        st.metric("📝 Righe", quality["total_rows"])
+                    with col3:
+                        st.metric("📌 Colonne", quality["total_columns"])
+                    with col4:
+                        st.metric("🔢 Numeriche", quality["numeric_columns"])
 
-                    # Renderizza grid
-                    num_cols = layout_engine.get_kpi_columns()
-                    render_kpi_grid(kpi_configs, num_columns=num_cols)
+                    # Renderizza KPI Cards
+                    if kpis:
+                        num_cols = layout_engine.get_kpi_columns()
+                        cols = st.columns(num_cols)
+
+                        for idx, kpi in enumerate(kpis):
+                            col_idx = idx % num_cols
+
+                            with cols[col_idx]:
+                                # Determina colore basato su trend
+                                if kpi.trend_direction == "up":
+                                    color = "🟢"
+                                elif kpi.trend_direction == "down":
+                                    color = "🔴"
+                                else:
+                                    color = "⚪"
+
+                                # Crea card con border colorato
+                                border_color = (
+                                    "#10b981"
+                                    if kpi.trend_direction == "up"
+                                    else (
+                                        "#ef4444"
+                                        if kpi.trend_direction == "down"
+                                        else "#667eea"
+                                    )
+                                )
+
+                                st.markdown(
+                                    f"""
+                                    <div style="
+                                        border-left: 4px solid {border_color};
+                                        padding: 1rem;
+                                        background: #f8f9fa;
+                                        border-radius: 8px;
+                                        margin-bottom: 0.5rem;
+                                    ">
+                                        <p style="margin: 0; color: #6b7280; font-size: 0.875rem; font-weight: 500;">
+                                            {kpi.icon} {kpi.name}
+                                        </p>
+                                        <h3 style="margin: 0.5rem 0 0 0; color: #1f2937; font-size: 1.875rem; font-weight: bold;">
+                                            {kpi.format_value()}
+                                        </h3>
+                                        {f'<p style="margin: 0.25rem 0 0 0; color: {border_color}; font-size: 0.875rem;">{color} {kpi.trend_text}</p>' if kpi.trend_text else ''}
+                                        {f'<p style="margin: 0.25rem 0 0 0; color: #6b7280; font-size: 0.75rem;">{kpi.description}</p>' if kpi.description else ''}
+                                    </div>
+                                    """,
+                                    unsafe_allow_html=True,
+                                )
+                    else:
+                        st.info("📊 Nessun KPI disponibile con i dati attuali")
+
+                    # Mostra KPI Summary
+                    if st.checkbox("📊 Vedi Dettagli KPI"):
+                        summary = kpi_calculator_filtered.get_kpi_summary()
+                        st.json(
+                            {
+                                "total_kpis": summary["total_kpis"],
+                                "data_quality": summary["data_quality"],
+                                "timestamp": summary["timestamp"],
+                            }
+                        )
 
                 except Exception as e:
                     st.error(f"❌ Errore KPI: {str(e)}")
+                    import traceback
+
+                    st.error(traceback.format_exc())
 
             # ================================================================
             # SEZIONE 4: GRAFICI INTELLIGENTI
