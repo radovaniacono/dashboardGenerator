@@ -42,6 +42,7 @@ from tables_interactive import InteractiveTable, render_table_with_filters
 from filter_system import GlobalFilterManager, FilterBar
 from accessibility import AccessibilityManager, add_skip_link, ColorAccessibility
 from error_handler import DashboardErrorHandler, ErrorMessageFormatter
+from tableau_documentation_generator import TableauDocumentationGenerator
 
 # ============================================================================
 # CONFIGURAZIONE PAGINA E TEMA
@@ -456,7 +457,7 @@ if uploaded_file is not None:
             st.markdown("---")
             st.subheader("💾 Download Risultati")
 
-            col1, col2, col3 = st.columns(3)
+            col1, col2, col3, col4 = st.columns(4)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
             with col1:
@@ -489,6 +490,25 @@ if uploaded_file is not None:
                             )
                 except:
                     st.button("📋 Excel", disabled=True, help="Richiede openpyxl")
+
+            with col4:
+                # Tableau documentation
+                try:
+                    tableau_gen = TableauDocumentationGenerator(
+                        filtered_df, title="Dashboard"
+                    )
+                    tableau_guide = tableau_gen.generate_tableau_guide()
+                    st.download_button(
+                        "📊 Guida Tableau",
+                        tableau_guide,
+                        f"tableau_guide_{timestamp}.md",
+                        "text/markdown",
+                        help="Guida completa per ricreate i grafici su Tableau",
+                    )
+                except Exception as e:
+                    st.button(
+                        "📊 Guida Tableau", disabled=True, help=f"Errore: {str(e)}"
+                    )
 
 else:
     # Landing page
