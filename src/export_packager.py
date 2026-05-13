@@ -15,12 +15,18 @@ from pathlib import Path
 
 class ExportPackager:
     """Crea package completo di export (TWBX + PDF + CSV + Docs)"""
-    
-    def __init__(self, df: pd.DataFrame, kpis: List = None, charts: List = None, 
-                 corrections: List = None, title: str = "Dashboard"):
+
+    def __init__(
+        self,
+        df: pd.DataFrame,
+        kpis: List = None,
+        charts: List = None,
+        corrections: List = None,
+        title: str = "Dashboard",
+    ):
         """
         Inizializza il packager
-        
+
         Args:
             df: DataFrame con dati
             kpis: Lista di KPI
@@ -35,86 +41,97 @@ class ExportPackager:
         self.title = title
         self.temp_dir = tempfile.mkdtemp()
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
+
     def create_export_package(self) -> str:
         """
         Crea ZIP package completo con tutti i file di export
-        
+
         Returns:
             Path al file ZIP creato
         """
-        
+
         package_name = f"dashboard_export_{self.timestamp}.zip"
         package_path = os.path.join(self.temp_dir, package_name)
-        
-        with zipfile.ZipFile(package_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+
+        with zipfile.ZipFile(package_path, "w", zipfile.ZIP_DEFLATED) as zf:
             # 1. CSV dati originali
             csv_path = self._create_csv()
             zf.write(csv_path, "1_DATA/data.csv")
-            
+
             # 2. Dati profiling
             profile_path = self._create_data_profile()
             zf.write(profile_path, "1_DATA/data_profile.json")
-            
+
             # 3. Metadata export
             metadata = self._create_metadata()
-            zf.writestr("0_INFO/metadata.json", json.dumps(metadata, indent=2, ensure_ascii=False))
-            
+            zf.writestr(
+                "0_INFO/metadata.json",
+                json.dumps(metadata, indent=2, ensure_ascii=False),
+            )
+
             # 4. README file
             readme = self._create_readme()
             zf.writestr("0_INFO/README.md", readme)
-            
+
             # 5. Tableau guide
             tableau_guide = self._create_tableau_guide()
             zf.writestr("2_TABLEAU/SETUP_GUIDE.md", tableau_guide)
-            
+
             # 6. Tableau connection script
             conn_script = self._create_connection_scripts()
-            zf.writestr("2_TABLEAU/publish_script.sh", conn_script['shell'])
-            zf.writestr("2_TABLEAU/publish_script.py", conn_script['python'])
-            
+            zf.writestr("2_TABLEAU/publish_script.sh", conn_script["shell"])
+            zf.writestr("2_TABLEAU/publish_script.py", conn_script["python"])
+
             # 7. Correzioni applicate
             if self.corrections:
                 corrections_report = self._create_corrections_report()
                 zf.writestr("3_PROCESSING/corrections_applied.md", corrections_report)
-            
+
             # 8. KPI Summary
             if self.kpis:
                 kpi_summary = self._create_kpi_summary()
-                zf.writestr("4_ANALYSIS/kpi_summary.json", json.dumps(kpi_summary, indent=2, ensure_ascii=False))
-            
+                zf.writestr(
+                    "4_ANALYSIS/kpi_summary.json",
+                    json.dumps(kpi_summary, indent=2, ensure_ascii=False),
+                )
+
             # 9. Charts metadata
             if self.charts:
                 charts_info = self._create_charts_info()
-                zf.writestr("4_ANALYSIS/charts_info.json", json.dumps(charts_info, indent=2, ensure_ascii=False))
-            
+                zf.writestr(
+                    "4_ANALYSIS/charts_info.json",
+                    json.dumps(charts_info, indent=2, ensure_ascii=False),
+                )
+
             # 10. SQL Reference (per collegare a database)
             sql_reference = self._create_sql_reference()
             zf.writestr("5_REFERENCE/sql_queries.sql", sql_reference)
-            
+
             # 11. Data Dictionary
             data_dict = self._create_data_dictionary()
             zf.writestr("5_REFERENCE/data_dictionary.md", data_dict)
-        
+
         return package_path
-    
+
     def _create_csv(self) -> str:
         """Salva CSV dati"""
         csv_path = os.path.join(self.temp_dir, "data.csv")
-        self.df.to_csv(csv_path, index=False, encoding='utf-8')
+        self.df.to_csv(csv_path, index=False, encoding="utf-8")
         return csv_path
-    
+
     def _create_data_profile(self) -> str:
         """Crea profilo dati in JSON"""
         profile_path = os.path.join(self.temp_dir, "data_profile.json")
-        
+
         profile = {
             "total_rows": len(self.df),
             "total_columns": len(self.df.columns),
-            "memory_usage_mb": round(self.df.memory_usage(deep=True).sum() / (1024*1024), 2),
-            "columns": {}
+            "memory_usage_mb": round(
+                self.df.memory_usage(deep=True).sum() / (1024 * 1024), 2
+            ),
+            "columns": {},
         }
-        
+
         for col in self.df.columns:
             col_data = self.df[col]
             col_profile = {
@@ -123,22 +140,40 @@ class ExportPackager:
                 "missing_pct": round((col_data.isnull().sum() / len(self.df)) * 100, 2),
                 "unique_values": int(col_data.nunique()),
             }
-            
+
             if pd.api.types.is_numeric_dtype(col_data):
-                col_profile.update({
-                    "min": float(col_data.min()) if not col_data.isnull().all() else None,
-                    "max": float(col_data.max()) if not col_data.isnull().all() else None,
-                    "mean": float(col_data.mean()) if not col_data.isnull().all() else None,
-                    "std": float(col_data.std()) if not col_data.isnull().all() else None
-                })
-            
+                col_profile.update(
+                    {
+                        "min": (
+                            float(col_data.min())
+                            if not col_data.isnull().all()
+                            else None
+                        ),
+                        "max": (
+                            float(col_data.max())
+                            if not col_data.isnull().all()
+                            else None
+                        ),
+                        "mean": (
+                            float(col_data.mean())
+                            if not col_data.isnull().all()
+                            else None
+                        ),
+                        "std": (
+                            float(col_data.std())
+                            if not col_data.isnull().all()
+                            else None
+                        ),
+                    }
+                )
+
             profile["columns"][col] = col_profile
-        
-        with open(profile_path, 'w', encoding='utf-8') as f:
+
+        with open(profile_path, "w", encoding="utf-8") as f:
             json.dump(profile, f, indent=2, ensure_ascii=False)
-        
+
         return profile_path
-    
+
     def _create_metadata(self) -> Dict:
         """Crea metadata export"""
         return {
@@ -148,20 +183,26 @@ class ExportPackager:
             "stats": {
                 "total_rows": len(self.df),
                 "total_columns": len(self.df.columns),
-                "numeric_columns": len(self.df.select_dtypes(include=['number']).columns),
-                "categorical_columns": len(self.df.select_dtypes(include=['object', 'category']).columns),
-                "temporal_columns": len(self.df.select_dtypes(include=['datetime64']).columns)
+                "numeric_columns": len(
+                    self.df.select_dtypes(include=["number"]).columns
+                ),
+                "categorical_columns": len(
+                    self.df.select_dtypes(include=["object", "category"]).columns
+                ),
+                "temporal_columns": len(
+                    self.df.select_dtypes(include=["datetime64"]).columns
+                ),
             },
             "contents": {
                 "kpis": len(self.kpis),
                 "charts": len(self.charts),
-                "corrections_applied": len(self.corrections)
-            }
+                "corrections_applied": len(self.corrections),
+            },
         }
-    
+
     def _create_readme(self) -> str:
         """Crea README file"""
-        
+
         readme = f"""# 📊 Dashboard Export Package - {self.title}
 
 **Data di esportazione**: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}  
@@ -271,12 +312,12 @@ Per problemi:
 **Version**: 5.0 AI Dashboard Generator  
 **Created**: {datetime.now().isoformat()}
 """
-        
+
         return readme
-    
+
     def _create_tableau_guide(self) -> str:
         """Crea guida Tableau dettagliata"""
-        
+
         guide = f"""# 📊 Guida Tableau Completa
 
 ## Configurazione Data Source
@@ -403,12 +444,12 @@ Usa script in `publish_script.py` o `publish_script.sh`
 
 **Supporto Ufficiale**: https://help.tableau.com
 """
-        
+
         return guide
-    
+
     def _create_connection_scripts(self) -> Dict[str, str]:
         """Crea script per pubblicare su Tableau Server/Online"""
-        
+
         shell_script = f"""#!/bin/bash
 # Tableau Publication Script for Server/Online
 
@@ -434,7 +475,7 @@ tabcmd publish "data.csv" \\
 echo "✅ Dashboard published successfully!"
 echo "View at: ${{SERVER_URL}}/views/..."
 """
-        
+
         python_script = f"""#!/usr/bin/env python
 # Tableau Online/Server Publication Script
 
@@ -504,15 +545,12 @@ if __name__ == "__main__":
     success = publish_to_tableau()
     sys.exit(0 if success else 1)
 """
-        
-        return {
-            "shell": shell_script,
-            "python": python_script
-        }
-    
+
+        return {"shell": shell_script, "python": python_script}
+
     def _create_corrections_report(self) -> str:
         """Crea report correzioni applicate"""
-        
+
         report = f"""# 🔧 Correzioni Applicate
 
 **Data**: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}
@@ -525,10 +563,10 @@ if __name__ == "__main__":
 ## Dettagli
 
 """
-        
+
         for idx, correction in enumerate(self.corrections, 1):
             report += f"\n### {idx}. {correction}\n"
-        
+
         report += f"""
 
 ---
@@ -544,39 +582,41 @@ if __name__ == "__main__":
 
 **Importante**: Rivedi sempre i dati dopo le correzioni!
 """
-        
+
         return report
-    
+
     def _create_kpi_summary(self) -> List:
         """Crea summary KPI"""
-        
+
         kpi_list = []
         for kpi in self.kpis:
-            if hasattr(kpi, 'to_dict'):
+            if hasattr(kpi, "to_dict"):
                 kpi_list.append(kpi.to_dict())
             else:
-                kpi_list.append({
-                    "name": str(kpi.get('name', 'Unknown')),
-                    "value": str(kpi.get('value', 'N/A'))
-                })
-        
+                kpi_list.append(
+                    {
+                        "name": str(kpi.get("name", "Unknown")),
+                        "value": str(kpi.get("value", "N/A")),
+                    }
+                )
+
         return kpi_list
-    
+
     def _create_charts_info(self) -> List:
         """Crea info charts"""
-        
+
         return [
             {
-                "name": chart.get('name', f'Chart {i+1}'),
-                "type": chart.get('type', 'unknown'),
-                "description": chart.get('description', '')
+                "name": chart.get("name", f"Chart {i+1}"),
+                "type": chart.get("type", "unknown"),
+                "description": chart.get("description", ""),
             }
             for i, chart in enumerate(self.charts)
         ]
-    
+
     def _create_sql_reference(self) -> str:
         """Crea query SQL di riferimento"""
-        
+
         sql = f"""-- SQL Reference for Dashboard Data
 -- Generated: {datetime.now().isoformat()}
 
@@ -585,7 +625,7 @@ if __name__ == "__main__":
 
 CREATE TABLE dashboard_data (
 """
-        
+
         for col in self.df.columns:
             col_dtype = self.df[col].dtype
             if pd.api.types.is_numeric_dtype(col_dtype):
@@ -594,9 +634,9 @@ CREATE TABLE dashboard_data (
                 sql_type = "TIMESTAMP"
             else:
                 sql_type = "VARCHAR(255)"
-            
+
             sql += f"    {col} {sql_type},\n"
-        
+
         sql += """    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -642,25 +682,25 @@ SELECT
     ROUND(100.0 * COUNT(*) FILTER (WHERE {first_dim} IS NOT NULL) / COUNT(*), 2) as completeness_pct
 FROM dashboard_data;
 """
-        
+
         return sql
-    
+
     def _create_data_dictionary(self) -> str:
         """Crea data dictionary"""
-        
+
         dictionary = f"""# 📖 Data Dictionary - {self.title}
 
 **Generato**: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}  
-**Totale colonne**: {len(self.df.columns)
+**Totale colonne**: {len(self.df.columns)}
 
 ---
 
 """
-        
+
         for col in self.df.columns:
             col_data = self.df[col]
             col_dtype = col_data.dtype
-            
+
             if pd.api.types.is_numeric_dtype(col_dtype):
                 col_type = "Numerico"
                 stats = f"Min: {col_data.min():.2f}, Max: {col_data.max():.2f}, Media: {col_data.mean():.2f}"
@@ -670,10 +710,10 @@ FROM dashboard_data;
             else:
                 col_type = "Testo"
                 stats = f"Valori unici: {col_data.nunique()}"
-            
+
             missing = col_data.isnull().sum()
             missing_pct = (missing / len(self.df)) * 100
-            
+
             dictionary += f"""## {col}
 
 **Tipo**: {col_type}  
@@ -683,23 +723,23 @@ FROM dashboard_data;
 
 ---
 """
-        
+
         return dictionary
-    
+
     def _get_date_range(self) -> str:
         """Estrae range date"""
-        date_cols = self.df.select_dtypes(include=['datetime64']).columns
+        date_cols = self.df.select_dtypes(include=["datetime64"]).columns
         if len(date_cols) > 0:
             col = date_cols[0]
             return f"{self.df[col].min()} a {self.df[col].max()}"
         return "N/A"
-    
+
     def _get_dimensions_list(self) -> str:
         """Elenca dimensioni suggerite"""
-        dims = self.df.select_dtypes(include=['object', 'category']).columns.tolist()
+        dims = self.df.select_dtypes(include=["object", "category"]).columns.tolist()
         return "\n".join([f"  - {col}" for col in dims[:10]])
-    
+
     def _get_measures_list(self) -> str:
         """Elenca measures suggerite"""
-        measures = self.df.select_dtypes(include=['number']).columns.tolist()
+        measures = self.df.select_dtypes(include=["number"]).columns.tolist()
         return "\n".join([f"  - {col}" for col in measures[:10]])
